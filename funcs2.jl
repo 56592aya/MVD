@@ -184,21 +184,3 @@ function update_alpha!(model, count_params)
 	x = (sum(model.γ) - sum(model.alpha_sstat))/count_params.N
 	copyto!(model.Alpha ,x)
 end
-# function update_alpha_trick!(model, mb, rate_, count_params)
-# 	n = length(mb)
-# 	K = prod(size(model.Alpha))
-#
-# 	init_ = deepcopy(model.Alpha)
-# 	temp_ = deepcopy(init_)
-# 	logphat = sum(hcat(vectorize_mat.([Elog(model.γ[i]) for i in mb])...), dims=2)[:,1] ./ (n)
-# 	g = (count_params.N).*(vectorize_mat(-Elog(temp_)) .+ logphat)
-# 	c = (count_params.N)*trigamma_(sum(temp_))
-# 	q = (-count_params.N).*trigamma_.(vectorize_mat(temp_))
-# 	b = sum(g./q)/(1.0/c+sum(1.0./q))
-# 	dalpha = -(g .- b)./q
-# 	temp_ .+= matricize_vec(rate_.*dalpha, model.K1, model.K2)
-# 	if any(temp_ .<= 0.0) || any(isnan.(temp_))
-# 		temp_ = (1.0/K).*mean(model.γ)
-# 	end
-# 	copyto!(model.Alpha, temp_)
-# end
