@@ -91,10 +91,10 @@ function main(args)
 	# global β2_single_prior = .5
 	# global S = 256.0
 	# global κ = .6
-	# global every = 5
+	# global every = 1
 	# global MAXITER = 100000
 	# global mb_size = 256
-	# global h = 0.001
+	# global h = 0.005
 	# global data_folder = "10000_5_5_50_50_0.5_0.2_0.2_true"
 	# global all_ = true
 	# global sparsity = 0.0
@@ -220,11 +220,13 @@ function main(args)
 		################################
 			 ### Hparam Learning ###
 		################################
-		update_alpha!(model, mb, ρ)
+		# if epoch_count >= 5
+		# 	update_alpha!(model, mb, ρ)
+		# end
 		# if epoch_count >= 1
-		# 	copyto!(model.old_Alpha,model.Alpha)
-		#	 update_alpha!(model, count_params)
-		# 	model.Alpha .= (1.0-ρ).*model.old_Alpha .+ ρ.*model.Alpha
+			copyto!(model.old_Alpha,model.Alpha)
+		 	update_alpha_newton!(model, count_params, h_map)
+			model.Alpha .= (1.0-ρ).*model.old_Alpha .+ ρ.*model.Alpha
 		# end
 
 		# println(mindex == nb)

@@ -184,6 +184,73 @@ function update_alpha!(model, count_params)
 	x = (sum(model.γ) - sum(model.alpha_sstat))/count_params.N
 	copyto!(model.Alpha ,x)
 end
+
+function update_alpha_newton!(model, count_params, h_map)
+	N = count_params.N
+	logphat = vectorize_mat(sum(Elog.(model.γ[.!h_map]))./N)
+	counter = 0
+	cond = true
+	max_iter = 10000
+	decay_factor = .8
+	max_decay = 10
+	decay = 0
+	K = prod(size(model.Alpha))
+	Alpha = ones(Float64, 25)
+	Alpha_new = zeros(Float64,K)
+	ga = zeros(Float64,K)
+	Ha = zeros(Float64,K)
+	while cond
+		sumgh = 0.0
+		sum1h = 0.0
+		for k in 1:K
+			# global sumgh, sum1h
+			ga[k] = N*(digamma_(sum(Alpha))- digamma_(Alpha[k]) + logphat[k])
+			Ha[k] = -N*trigamma_(Alpha[k])
+			sumgh += ga[k]/Ha[k]
+			sum1h += 1.0/Ha[k]
+		end
+		z = N*trigamma_(sum(Alpha))
+		c = sumgh/(1.0/z + sum1h)
+		while true
+			singular = false
+			for k in 1:K
+				# global singular
+				step = (decay_factor^decay) * (ga[k] - c)/Ha[k]
+				if Alpha[k] <= step
+					singular = true
+					break
+				end
+				Alpha_new[k] = Alpha[k] - step
+			end
+			singular
+			if singular
+				decay += 1
+				copyto!(Alpha_new,Alpha)
+				if decay > max_decay
+					break
+				end
+			else
+				break;
+			end
+		end
+		cond = false
+		if mean(abs.(Alpha_new .- Alpha)./Alpha) >= 1e-6
+			cond =true
+		end
+		if counter > max_iter
+			cond = false
+		end
+		if decay > max_decay
+			break;
+		end
+		counter += 1
+		copyto!(Alpha, Alpha_new)
+
+	end
+	copyto!(model.Alpha, Alpha)
+end
+
+
 function update_alpha!(model, mb, ρ)
 	N = convert(Float64, length(mb))
 	logphat = sum(Elog.(model.γ[mb]))./N
