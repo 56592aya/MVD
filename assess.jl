@@ -10,7 +10,9 @@ else
 	@load "../truth" Truth_Params
 end
 ####
+
 @load "model_at_epoch_$(eee)" model
+
 B1_est = estimate_B(model.b1);
 B2_est = estimate_B(model.b2);
 theta_est = estimate_thetas(model.γ);
@@ -165,6 +167,10 @@ if length(unique(inds1)) == length(inds1) && length(unique(inds2)) == length(ind
 		Plots.plot(plts..., layout =(1, length(inds2)), legend=false)
 		savefig("pics/thetas2_absent.png")
 	end
+	p1 = Plots.heatmap(model.Alpha[inds1, inds2], yflip = true)
+	savefig("pics/model_Alpha.png")
+	p2 = Plots.heatmap(Truth_Params.Α, yflip = true)
+	savefig("pics/true_Alpha.png")
 
 end
 #
@@ -203,3 +209,4 @@ end
 # 	counts1 = vcat(counts1, length(find_all(u, doc)))
 # end
 # c1.docs[i] = Document(uniqs1,counts1,doc1.len)
+ # x = (sum(model.γ[.!(h_map)]) - sum(model.alpha_sstat[.!(h_map)]))/sum(.!(h_map))

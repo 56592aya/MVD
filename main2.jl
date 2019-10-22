@@ -220,14 +220,20 @@ function main(args)
 		################################
 			 ### Hparam Learning ###
 		################################
-		if epoch_count >= 1
-			copyto!(model.old_Alpha,model.Alpha)
-			update_alpha!(model, count_params)
-			model.Alpha .= (1.0-ρ).*model.old_Alpha .+ ρ.*model.Alpha
-		end
+		update_alpha!(model, mb, ρ)
+		# if epoch_count >= 1
+		# 	copyto!(model.old_Alpha,model.Alpha)
+		#	 update_alpha!(model, count_params)
+		# 	model.Alpha .= (1.0-ρ).*model.old_Alpha .+ ρ.*model.Alpha
+		# end
 
+		# println(mindex == nb)
 		mindex += 1
-
+		# iter += 1
+		# x = estimate_thetas(model.γ)
+		# (sum(x)/10000)[inds1, inds2]
+		# model.Alpha[]
+		# Truth_Params.Α
 	  	################################
 			###For FINAL Rounds###
 	  	################################

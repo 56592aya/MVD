@@ -184,3 +184,21 @@ function update_alpha!(model, count_params)
 	x = (sum(model.γ) - sum(model.alpha_sstat))/count_params.N
 	copyto!(model.Alpha ,x)
 end
+function update_alpha!(model, mb, ρ)
+	N = convert(Float64, length(mb))
+	logphat = sum(Elog.(model.γ[mb]))./N
+	dprior = vectorize_mat(deepcopy(model.Alpha))
+	gradf = vectorize_mat(N * (-Elog(model.Alpha) + logphat))
+
+    c = N * trigamma_(sum(model.Alpha))
+    q = -N * trigamma_.(vectorize_mat(model.Alpha))
+
+    b = sum(gradf./ q) / (1.0 / c + sum(1.0./ q))
+
+    dprior = -(gradf .- b) ./ q
+
+    if all(ρ .* dprior .+ vectorize_mat(model.Alpha) .> 0)
+        model.Alpha += matricize_vec(ρ .* dprior, model.K1, model.K2)
+    else
+	end
+end
