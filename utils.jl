@@ -1,51 +1,68 @@
 VectorList{T} = Vector{Vector{T}}
 MatrixList{T} = Vector{Matrix{T}}
-mutable struct Document
-	terms::Vector{Int64}
-	counts::Vector{Int64}
-	len::Int64
+mutable struct Document{T<:Integer}
+	terms::Vector{T}
+	counts::Vector{T}
+	len::T
 end
 mutable struct Corpus
 	docs::Vector{Document}
 	N::Int64
 	V::Int64
 end
-struct CountParams
-	N::Int64
-	K1::Int64
-	K2::Int64
+
+struct CountParams{T<:Integer}
+	N::T
+	N2::T
+	K1::T
+	K2::T
 end
-mutable struct MVD
-    K1::Int64
-    K2::Int64
+mutable struct MVD{T<:Integer, R<:Real}
+    K1::T
+    K2::T
     Corpus1::Corpus
     Corpus2::Corpus
-    Alpha::Matrix{Float64}
-    old_Alpha::Matrix{Float64}
-    B1::Matrix{Float64}
-    old_B1::Matrix{Float64}
-	B2::Matrix{Float64}
-    old_B2::Matrix{Float64}
-    Elog_B1::Matrix{Float64}
-    Elog_B2::Matrix{Float64}
-    Elog_Theta::MatrixList{Float64}
-    γ::MatrixList{Float64}
-    old_γ::Matrix{Float64}
-    b1::Matrix{Float64}
-    old_b1::Matrix{Float64}
-    b2::Matrix{Float64}
-    old_b2::Matrix{Float64}
-	temp::Matrix{Float64}
-	sstat_i::Matrix{Float64}
-	sstat_mb_1::Vector{Float64}
-	sstat_mb_2::Vector{Float64}
-	sum_phi_1_mb::Matrix{Float64}
-	sum_phi_2_mb::Matrix{Float64}
-	sum_phi_1_i::Matrix{Float64}
-	sum_phi_2_i::Matrix{Float64}
-	alpha_sstat::MatrixList{Float64}
+    Alpha::AbstractArray{R}
+    old_Alpha::AbstractArray{R}
+    B1::AbstractArray{R}
+    old_B1::AbstractArray{R}
+	B2::AbstractArray{R}
+    old_B2::AbstractArray{R}
+    Elog_B1::AbstractArray{R}
+    Elog_B2::AbstractArray{R}
+    Elog_Theta::MatrixList{R}
+    γ::MatrixList{R}
+    old_γ::AbstractArray{R}
+    b1::AbstractArray{R}
+    old_b1::AbstractArray{R}
+    b2::AbstractArray{R}
+    old_b2::AbstractArray{R}
+	temp::AbstractArray{R}
+	sstat_i::AbstractArray{R}
+	sstat_mb_1::AbstractVector{R}
+	sstat_mb_2::AbstractVector{R}
+	sum_phi_1_mb::AbstractArray{R}
+	sum_phi_2_mb::AbstractArray{R}
+	sum_phi_1_i::AbstractArray{R}
+	sum_phi_2_i::AbstractArray{R}
+	# alpha_sstat::MatrixList{Float64}
 end
-
+struct Settings{R<:Real, T<:Integer}
+	zeroer_i::AbstractArray{R}
+	zeroer_mb_1::AbstractArray{R}
+	zeroer_mb_2::AbstractArray{R}
+	MAX_VI_ITER::T
+	MAX_ALPHA_ITER::T
+	MAX_GAMMA_ITER::T
+	MAX_ALPHA_DECAY::T
+	ALPHA_DECAY_FACTOR::R
+	ALPHA_THRESHOLD::R
+	GAMMA_THRESHOLD::R
+	VI_THRESHOLD::R
+	EVAL_EVERY::T
+	LR_OFFSET::R
+	LR_KAPPA::R
+end
 function digamma_(x::Float64)
   	x=x+6.0
   	p=1.0/abs2(x)
@@ -246,8 +263,8 @@ end
 function find_all(val, doc)
 	findall(x -> x == val, doc)
 end
-function get_lr(epoch::Int64, S::Float64, κ::Float64)
-	return (S+convert(Float64, epoch))^(-κ)
+function get_lr(i::Int64, settings::Settings)
+	return (settings.LR_OFFSET+convert(Float64, i))^(-settings.LR_KAPPA)
 end
 function mean_change(new::AbstractArray{R}, old::AbstractArray{R}) where  {R<:AbstractFloat}
 	n = length(new)
