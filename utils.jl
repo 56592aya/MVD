@@ -1,9 +1,12 @@
+################################################################################
+##############################  DATA STRUCURES  ################################
+################################################################################
 VectorList{T} = Vector{Vector{T}}
 MatrixList{T} = Vector{Matrix{T}}
-mutable struct Document{T<:Integer}
-	terms::Vector{T}
-	counts::Vector{T}
-	len::T
+mutable struct Document
+	terms::Vector{Int64}
+	counts::Vector{Int64}
+	len::Int64
 end
 mutable struct Corpus
 	docs::Vector{Document}
@@ -11,58 +14,118 @@ mutable struct Corpus
 	V::Int64
 end
 
-struct CountParams{T<:Integer}
-	N::T
-	N2::T
-	K1::T
-	K2::T
+struct CountParams
+	N::Int64
+	N2::Int64
+	K1::Int64
+	K2::Int64
 end
-mutable struct MVD{T<:Integer, R<:Real}
-    K1::T
-    K2::T
+
+mutable struct MVD
+    K1::Int64
+    K2::Int64
     Corpus1::Corpus
     Corpus2::Corpus
-    Alpha::AbstractArray{R}
-    old_Alpha::AbstractArray{R}
-    B1::AbstractArray{R}
-    old_B1::AbstractArray{R}
-	B2::AbstractArray{R}
-    old_B2::AbstractArray{R}
-    Elog_B1::AbstractArray{R}
-    Elog_B2::AbstractArray{R}
-    Elog_Theta::MatrixList{R}
-    γ::MatrixList{R}
-    old_γ::AbstractArray{R}
-    b1::AbstractArray{R}
-    old_b1::AbstractArray{R}
-    b2::AbstractArray{R}
-    old_b2::AbstractArray{R}
-	temp::AbstractArray{R}
-	sstat_i::AbstractArray{R}
-	sstat_mb_1::AbstractVector{R}
-	sstat_mb_2::AbstractVector{R}
-	sum_phi_1_mb::AbstractArray{R}
-	sum_phi_2_mb::AbstractArray{R}
-	sum_phi_1_i::AbstractArray{R}
-	sum_phi_2_i::AbstractArray{R}
+    Alpha::Matrix{Float64}
+    old_Alpha::Matrix{Float64}
+    B1::Matrix{Float64}
+    old_B1::Matrix{Float64}
+	B2::Matrix{Float64}
+    old_B2::Matrix{Float64}
+    Elog_B1::Matrix{Float64}
+    Elog_B2::Matrix{Float64}
+    Elog_Theta::MatrixList{Float64}
+    γ::MatrixList{Float64}
+    old_γ::Matrix{Float64}
+    b1::Matrix{Float64}
+    old_b1::Matrix{Float64}
+    b2::Matrix{Float64}
+    old_b2::Matrix{Float64}
+	temp::Matrix{Float64}
+	sstat_i::Matrix{Float64}
+	sstat_mb_1::Vector{Float64}
+	sstat_mb_2::Vector{Float64}
+	sum_phi_1_mb::Matrix{Float64}
+	sum_phi_2_mb::Matrix{Float64}
+	sum_phi_1_i::Matrix{Float64}
+	sum_phi_2_i::Matrix{Float64}
 	# alpha_sstat::MatrixList{Float64}
+	function MVD(K1::Int64, K2::Int64, Corpus1::Corpus, Corpus2::Corpus,
+		 		alpha_prior_::Float64, beta1_prior_::Float64, beta2_prior_::Float64)
+		model = new()
+		model.K1 = K1
+		model.K2 = K2
+		model.Corpus1 = Corpus1
+		model.Corpus2 = Corpus2
+		model.Alpha = matricize_vec(rand(Uniform(0.0,alpha_prior_), (K1*K2)), K1, K2)
+		model.old_Alpha = deepcopy(model.Alpha)
+		model.B1 = collect(repeat(rand(Uniform(0.0, beta1_prior_), model.Corpus1.V), inner=(1, K1))')
+		model.old_B1 = deepcopy(model.B1)
+		model.B2 = collect(repeat(rand(Uniform(0.0, beta2_prior_), model.Corpus2.V), inner=(1, K2))')
+		model.old_B2 = deepcopy(model.B2)
+		model.Elog_B1 = zeros(Float64, (K1, model.Corpus1.V))
+		model.Elog_B2 = zeros(Float64, (K2, model.Corpus2.V))
+		model.Elog_Theta = [zeros(Float64, (K1, K2)) for i in 1:model.Corpus1.N]
+		model.γ = [ones(Float64, (K1, K2)) for i in 1:model.Corpus1.N]
+		model.old_γ = zeros(Float64, (K1, K2))
+		model.b1 = deepcopy(model.B1)
+		model.old_b1 = deepcopy(model.b1)
+		model.b2 = deepcopy(model.B2)
+		model.old_b2 = deepcopy(model.b2)
+		model.temp = zeros(Float64, (K1, K2))
+		model.sstat_i = zeros(Float64, (K1, K2))
+		model.sstat_mb_1 = zeros(Float64, K1)
+		model.sstat_mb_2 = zeros(Float64, K2)
+		model.sum_phi_1_mb = zeros(Float64, (K1,model.Corpus1.V))
+		model.sum_phi_2_mb = zeros(Float64, (K1,model.Corpus1.V))
+		model.sum_phi_1_i =  zeros(Float64, (K1, K2))
+		model.sum_phi_2_i =  zeros(Float64, (K1, K2))
+		return model
+	end
 end
-struct Settings{R<:Real, T<:Integer}
-	zeroer_i::AbstractArray{R}
-	zeroer_mb_1::AbstractArray{R}
-	zeroer_mb_2::AbstractArray{R}
-	MAX_VI_ITER::T
-	MAX_ALPHA_ITER::T
-	MAX_GAMMA_ITER::T
-	MAX_ALPHA_DECAY::T
-	ALPHA_DECAY_FACTOR::R
-	ALPHA_THRESHOLD::R
-	GAMMA_THRESHOLD::R
-	VI_THRESHOLD::R
-	EVAL_EVERY::T
-	LR_OFFSET::R
-	LR_KAPPA::R
+
+mutable struct Settings
+	zeroer_i::Matrix{Float64}
+	zeroer_mb_1::Matrix{Float64}
+	zeroer_mb_2::Matrix{Float64}
+	MAX_VI_ITER::Int64
+	MAX_ALPHA_ITER::Int64
+	MAX_GAMMA_ITER::Int64
+	MAX_ALPHA_DECAY::Int64
+	ALPHA_DECAY_FACTOR::Float64
+	ALPHA_THRESHOLD::Float64
+	GAMMA_THRESHOLD::Float64
+	VI_THRESHOLD::Float64
+	EVAL_EVERY::Int64
+	LR_OFFSET::Float64
+	LR_KAPPA::Float64
+	function Settings(K1::Int64, K2::Int64,Corpus1::Corpus, Corpus2::Corpus,
+					 MAX_VI_ITER::Int64,MAX_ALPHA_ITER::Int64,MAX_GAMMA_ITER::Int64,
+					 MAX_ALPHA_DECAY::Int64,ALPHA_DECAY_FACTOR::Float64,
+					 ALPHA_THRESHOLD::Float64,GAMMA_THRESHOLD::Float64,
+					 VI_THRESHOLD::Float64,EVAL_EVERY::Int64,LR_OFFSET::Float64,
+					 LR_KAPPA::Float64)
+		settings = new()
+		settings.zeroer_i = zeros(Float64, (K1, K2))
+		settings.zeroer_mb_1 = zeros(Float64, (K1,Corpus1.V))
+		settings.zeroer_mb_2 = zeros(Float64, (K2,Corpus2.V))
+		settings.MAX_VI_ITER = MAX_VI_ITER
+		settings.MAX_ALPHA_ITER = MAX_ALPHA_ITER
+		settings.MAX_GAMMA_ITER = MAX_GAMMA_ITER
+		settings.MAX_ALPHA_DECAY = MAX_ALPHA_DECAY
+		settings.ALPHA_DECAY_FACTOR = ALPHA_DECAY_FACTOR
+		settings.ALPHA_THRESHOLD = ALPHA_THRESHOLD
+		settings.GAMMA_THRESHOLD = GAMMA_THRESHOLD
+		settings.VI_THRESHOLD = VI_THRESHOLD
+		settings.EVAL_EVERY = EVAL_EVERY
+		settings.LR_OFFSET = LR_OFFSET
+		settings.LR_KAPPA = LR_KAPPA
+		return settings
+	end
 end
+################################################################################
+##############################  Uitlity Funcs   ################################
+################################################################################
 function digamma_(x::Float64)
   	x=x+6.0
   	p=1.0/abs2(x)
@@ -121,7 +184,7 @@ function matricize_vec(vec_::Vector{Int64}, K1::Int64, K2::Int64)
 end
 
 
-function δ(i,j)
+function δ(i::Int64,j::Int64)
 	if i == j
 		return 1
 	else
@@ -134,16 +197,12 @@ function Elog(Mat::Matrix{Float64})
     digamma_.(Mat) .- digamma_(sum(Mat))
 end
 
-function Elog(Vec::Vector{Float64})
+# function Elog(Vec::Vector{Float64})
+#     digamma_.(Vec) .- digamma_(sum(Vec))
+# end
+function Elog(Vec::AbstractVector{Float64})
     digamma_.(Vec) .- digamma_(sum(Vec))
 end
-
-function Elog(Vec)
-    digamma_.(Vec) .- digamma_(sum(Vec))
-end
-
-
-
 function logsumexp(X::Vector{Float64})
 
     alpha = -Inf::Float64;
@@ -199,40 +258,12 @@ function softmax!(MEM::Matrix{Float64},X::Matrix{Float64})
     lse = logsumexp(X)
     @. (MEM = (exp(X - lse)));
 end
+function softmax!(MEM::Matrix{Float64})
+    softmax!(MEM, MEM)
+end
 function softmax(X::Matrix{Float64})
     return exp.(X .- logsumexp(X))
 end
-function logsumexp(X)
-    isempty(X) && return log(sum(X))
-    reduce(logaddexp, X)
-end
-function logsumexp(X::AbstractArray{T}; dims=:) where {T<:Real}
-    u = reduce(max, X, dims=dims, init=log(zero(T)))
-    u isa AbstractArray || isfinite(u) || return float(u)
-    let u=u
-        if u isa AbstractArray
-            u .+ log.(sum(exp.(X .- u); dims=dims))
-        else
-            u + log(sum(x -> exp(x-u), X))
-        end
-    end
-end
-function softmax!(r::AbstractArray{R}, x::AbstractArray{T}) where {R<:AbstractFloat,T<:Real}
-    n = length(x)
-    length(r) == n || throw(DimensionMismatch("Inconsistent array lengths."))
-    u = maximum(x)
-    s = 0.
-    @inbounds for i = 1:n
-        s += (r[i] = exp(x[i] - u))
-    end
-    invs = convert(R, inv(s))
-    @inbounds for i = 1:n
-        r[i] *= invs
-    end
-    r
-end
-softmax!(x::AbstractArray{<:AbstractFloat}) = softmax!(x, x)
-softmax(x::AbstractArray{<:Real}) = softmax!(similar(x, Float64), x)
 
 function sort_by_argmax!(X::Matrix{Float64})
 
@@ -260,7 +291,7 @@ function sort_by_argmax!(X::Matrix{Float64})
 	X, permuted_index
 end
 
-function find_all(val, doc)
+function find_all(val::Int64, doc::Vector{Int64})
 	findall(x -> x == val, doc)
 end
 function get_lr(i::Int64, settings::Settings)
@@ -271,7 +302,35 @@ function mean_change(new::AbstractArray{R}, old::AbstractArray{R}) where  {R<:Ab
 	change = sum(abs.(new .- old))/n
 	return(change)
 end
-function fix_corp!(model)
+
+
+function add_vec2mcols!(mem::AbstractArray{R},mat::AbstractArray{R}, vec::AbstractVector{T}) where {R<:AbstractFloat,T<:Real}
+	@inbounds for I in CartesianIndices(mat)
+		mem[I] = mat[I] + vec[I.I[1]]
+	end
+
+end
+
+function add_vec2mrows!(mem::AbstractArray{R},mat::AbstractArray{R}, vec::AbstractVector{T}) where {R<:AbstractFloat,T<:Real}
+	@inbounds for I in CartesianIndices(mat)
+		mem[I] = mat[I] + vec[I.I[2]]
+	end
+end
+function rowsums!(mem::AbstractVector{R}, mat::AbstractArray{R}) where {R<:AbstractFloat,T<:Real}
+	@inbounds for I in CartesianIndices(mat)
+		mem[I.I[1]] += mat[I]
+	end
+end
+
+function colsums!(mem::AbstractVector{R}, mat::AbstractArray{R}) where {R<:AbstractFloat,T<:Real}
+	@inbounds for I in CartesianIndices(mat)
+		mem[I.I[2]] += mat[I]
+	end
+end
+################################################################################
+##############################  Data Wrangling  ################################
+################################################################################
+function fix_corp!(model::MVD, folder::String)
 	c1 = deepcopy(model.Corpus1)
 	for i in 1:length(model.Corpus1.docs)
 		doc1 = model.Corpus1.docs[i]
@@ -295,9 +354,13 @@ function fix_corp!(model)
 	end
 	model.Corpus1 = c1
 	model.Corpus2 = c2
+	corp1 = deepcopy(model.Corpus1)
+	corp2 = deepcopy(model.Corpus2)
+	@save "$(folder)/Corpus1" corp1
+	@save "$(folder)/Corpus2" corp2
 end
 
-function figure_sparsity!(model, sparsity, all_)
+function figure_sparsity!(model::MVD, sparsity::Float64, all_::Bool, folder::String)
 	while true
 		y2 = Int64[]
 		if all_
@@ -352,28 +415,70 @@ function figure_sparsity!(model, sparsity, all_)
 			end
 		end
 	end
+	corp2_sparse = deepcopy(model.Corpus2)
+	@save "$(folder)/Corpus2_sparse" corp2_sparse
+end
+
+function epoch_batches(N::Int64, mb_size::Int64, h_map::Vector{Bool})
+	N_ = N - sum(h_map)
+	div_ = div(N_, mb_size)
+	nb = (div_ * mb_size - N_) < 0 ? div_ + 1 : div_
+	y = shuffle(collect(1:N)[.!h_map])
+	x = [Int64[] for _ in 1:nb]
+	for n in 1:nb
+		while length(x[n]) < mb_size && !isempty(y)
+			push!(x[n],pop!(y))
+		end
+	end
+	return x, nb
 end
 
 
-function add_vec2mcols!(mem::AbstractArray{R},mat::AbstractArray{R}, vec::AbstractVector{T}) where {R<:AbstractFloat,T<:Real}
-	@inbounds for I in CartesianIndices(mat)
-		mem[I] = mat[I] + vec[I.I[1]]
+
+function setup_hmap(model::MVD, h::Float64,N::Int64)
+	h_count = convert(Int64, floor(h*N))
+	corp1 = deepcopy(model.Corpus1)
+	corp2 = deepcopy(model.Corpus2)
+	while true
+		h_map = repeat([false], N)
+		inds = sample(1:N, h_count, replace=false, ordered=true)
+		h_map[inds] .= true
+		x1 = [corp1.docs[i].terms for i in collect(1:corp1.N)[.!h_map]]
+		x2 = [corp2.docs[i].terms for i in collect(1:corp2.N)[.!h_map]]
+		cond1 = any(.!isempty.(x1)) &&  any(.!isempty.(x2))
+		cond2 = (length(unique(vcat(x1...))) == corp1.V) && (length(unique(vcat(x2...))) == corp2.V)
+		if cond1 & cond2
+			return h_map
+		end
+	end
+end
+
+function split_ho_obs(model::MVD, h_map::Vector{Bool})
+	test_ids = findall(h_map)
+	hos1_dict = Dict{Int64, Vector{Int64}}()
+	obs1_dict = Dict{Int64, Vector{Int64}}()
+	hos2_dict = Dict{Int64, Vector{Int64}}()
+	obs2_dict = Dict{Int64, Vector{Int64}}()
+	for i in test_ids
+		if !haskey(hos1_dict, i)
+			hos1_dict[i] = getkey(hos1_dict, i, Int64[])
+			obs1_dict[i] = getkey(obs1_dict, i, Int64[])
+			hos2_dict[i] = getkey(hos2_dict, i, Int64[])
+			obs2_dict[i] = getkey(obs2_dict, i, Int64[])
+		end
+		terms_1 = model.Corpus1.docs[i].terms
+		terms_2 = model.Corpus2.docs[i].terms
+		partition_1 = div(length(terms_1),10)
+		partition_2 = div(length(terms_2),10)
+		hos1  = terms_1[1:partition_1]
+		obs1  = terms_1[partition_1+1:end]
+		hos2  = terms_2[1:partition_2]
+		obs2  = terms_2[partition_2+1:end]
+		hos1_dict[i] = hos1
+		obs1_dict[i] = obs1
+		hos2_dict[i] = hos2
+		obs2_dict[i] = obs2
 	end
 
-end
-function add_vec2mrows!(mem::AbstractArray{R},mat::AbstractArray{R}, vec::AbstractVector{T}) where {R<:AbstractFloat,T<:Real}
-	@inbounds for I in CartesianIndices(mat)
-		mem[I] = mat[I] + vec[I.I[2]]
-	end
-end
-function rowsums!(mem::AbstractVector{R}, mat::AbstractArray{R}) where {R<:AbstractFloat,T<:Real}
-	@inbounds for I in CartesianIndices(mat)
-		mem[I.I[1]] += mat[I]
-	end
-end
-
-function colsums!(mem::AbstractVector{R}, mat::AbstractArray{R}) where {R<:AbstractFloat,T<:Real}
-	@inbounds for I in CartesianIndices(mat)
-		mem[I.I[2]] += mat[I]
-	end
+	return hos1_dict,obs1_dict,hos2_dict,obs2_dict
 end
