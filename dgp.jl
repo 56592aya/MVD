@@ -37,7 +37,7 @@ function create_Alpha_manual(K1::Int64, K2::Int64, prior)
 			end
 		end
 	end
-	Res ./ sum(Res)
+	Res ./= sum(Res)
 	res = vectorize_mat(Res)
     return res, Res
 end

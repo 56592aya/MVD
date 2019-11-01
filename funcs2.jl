@@ -35,12 +35,17 @@ end
 
 function optimize_γi!(model::MVD, i::Int64)
 	@inbounds for I in eachindex(model.γ[i])
-		model.γ[i][I] = model.Alpha[I] + model.sum_phi_1_i[I] + model.sum_phi_2_i[I]
+		model.γ[i][I] = model.Alpha[I] + .5 + model.sum_phi_1_i[I] + model.sum_phi_2_i[I]
+	end
+end
+function optimize_γi_perp!(model::MVD, i::Int64)
+	@inbounds for I in eachindex(model.γ[i])
+		model.γ[i][I] = model.Alpha[I]  + model.sum_phi_1_i[I] + model.sum_phi_2_i[I]
 	end
 end
 function optimize_b!(b_::Matrix{Float64},len_mb::Int64, model_beta::Matrix{Float64}, sum_phi_mb::Matrix{Float64},N::Int64)
 	copyto!(b_, model_beta)
-	@.(b_ += (N/len_mb) * sum_phi_mb)
+	@.(b_ += .5 + (N/len_mb) * sum_phi_mb)
 end
 
 # function optimize_phi_iw!(model::MVD, i::Int64, mode::Int64, v::Int64)
@@ -153,7 +158,7 @@ function calc_theta_bar_i(obs1_dict::Dict{Int64,Array{Int64,1}}, obs2_dict::Dict
 			@.(model.sstat_i = corp2.counts[key] * model.temp)
 			@.(model.sum_phi_2_i += model.sstat_i)
 		end
-		optimize_γi!(model, i)
+		optimize_γi_perp!(model, i)
 		update_Elogtheta_i!(model, i)
 		gamma_change = mean_change(model.γ[i], model.old_γ)
 		# println(gamma_change)
@@ -263,4 +268,96 @@ function update_alpha_newton!(model::MVD, count_params::CountParams, h_map::Vect
 		copyto!(Alpha, Alpha_new)
 	end
 	copyto!(model.Alpha, matricize_vec(Alpha, model.K1, model.K2))
+
+end
+
+function update_alpha_newton!(model::MVD,ρ, count_params::CountParams,mb::Vector{Int64}, h_map::Vector{Bool}, settings::Settings)
+	N = count_params.N
+	n = length(mb)
+	logphat = vectorize_mat(sum(Elog.(model.γ[mb]))./n)
+	K = prod(size(model.Alpha))
+	#Alpha = ones(Float64, 25)
+	Alpha = vectorize_mat(deepcopy(model.Alpha))
+	Alpha_new = zeros(Float64,K)
+	ga = zeros(Float64,K)
+	Ha = zeros(Float64,K)
+
+
+	sumgh = 0.0
+	sum1h = 0.0
+	for k in 1:K
+		#global sumgh, sum1h
+		ga[k] = N*(digamma_(sum(Alpha))- digamma_(Alpha[k]) + logphat[k])
+		Ha[k] = -N*trigamma_(Alpha[k])
+		sumgh += ga[k]/Ha[k]
+		sum1h += 1.0/Ha[k]
+	end
+	z = N*trigamma_(sum(Alpha))
+	c = sumgh/(1.0/z + sum1h)
+
+	step_ = ρ .* (ga .- c)./Ha
+	if all(Alpha .> step_)
+		Alpha_new = Alpha .- step_
+		#copyto!(Alpha, Alpha_new)
+		copyto!(model.Alpha, matricize_vec(Alpha_new, model.K1, model.K2))
+	end
+	# model.Alpha ./= sum(model.Alpha)
+end
+
+function update_beta1_newton!(model::MVD,ρ, settings::Settings)
+	N = size(model.B1,1)
+	logphat = (sum(Elog(model.b1[k,:]) for k in 1:N) ./ N)
+	V = model.Corpus1.V
+	#Alpha = ones(Float64, 25)
+	B1 = deepcopy(model.B1[1,:])
+	B1_new = zeros(Float64,V)
+	ga = zeros(Float64,V)
+	Ha = zeros(Float64,V)
+
+
+	sumgh = 0.0
+	sum1h = 0.0
+	for v in 1:V
+		#global sumgh, sum1h
+		ga[v] = N*(digamma_(sum(B1))- digamma_(B1[v]) + logphat[v])
+		Ha[v] = -N*trigamma_(B1[v])
+		sumgh += ga[v]/Ha[v]
+		sum1h += 1.0/Ha[v]
+	end
+	z = N*trigamma_(sum(B1))
+	c = sumgh/(1.0/z + sum1h)
+
+	step_ = ρ .* (ga .- c)./Ha
+	if all(B1 .> step_)
+		B1_new = B1 .- step_
+		copyto!(model.B1, collect(repeat(B1_new, inner=(1,N))'))
+	end
+end
+function update_beta2_newton!(model::MVD,ρ,  settings::Settings)
+	N = size(model.B2,1)
+	logphat = (sum(Elog(model.b2[k,:]) for k in 1:N) ./ N)
+	V = model.Corpus2.V
+	B2 = deepcopy(model.B2[1,:])
+	B2_new = zeros(Float64,V)
+	ga = zeros(Float64,V)
+	Ha = zeros(Float64,V)
+
+
+	sumgh = 0.0
+	sum1h = 0.0
+	for v in 1:V
+		#global sumgh, sum1h
+		ga[v] = N*(digamma_(sum(B2))- digamma_(B2[v]) + logphat[v])
+		Ha[v] = -N*trigamma_(B2[v])
+		sumgh += ga[v]/Ha[v]
+		sum1h += 1.0/Ha[v]
+	end
+	z = N*trigamma_(sum(B2))
+	c = sumgh/(1.0/z + sum1h)
+
+	step_ = ρ .* (ga .- c)./Ha
+	if all(B2 .> step_)
+		B2_new = B2 .- step_
+		copyto!(model.B2, collect(repeat(B2_new, inner=(1,N))'))
+	end
 end

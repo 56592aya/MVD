@@ -127,13 +127,16 @@ end
 ##############################  Uitlity Funcs   ################################
 ################################################################################
 function digamma_(x::Float64)
-  	x=x+6.0
-  	p=1.0/abs2(x)
-  	p= (((0.004166666666667*p-0.003968253986254)*p+0.008333333333333)*p-0.083333333333333)*p
-  	p= p+log(x)-0.5/x-1.0/(x-1.0)-1.0/(x-2.0)-1.0/(x-3.0)-1.0/(x-4.0)-1.0/(x-5.0)-1.0/(x-6.0)
-  	p
+	# if x > 1.0
+	# 	return log(x-.5)
+	# else
+	  	x=x+6.0
+	  	p=1.0/abs2(x)
+	  	p= (((0.004166666666667*p-0.003968253986254)*p+0.008333333333333)*p-0.083333333333333)*p
+	  	p= p+log(x)-0.5/x-1.0/(x-1.0)-1.0/(x-2.0)-1.0/(x-3.0)-1.0/(x-4.0)-1.0/(x-5.0)-1.0/(x-6.0)
+	  	return p
+	# end
 end
-
 function trigamma_(x::Float64)
     x=x+6.0;
     p=1.0/(x*x);
@@ -296,6 +299,9 @@ function find_all(val::Int64, doc::Vector{Int64})
 end
 function get_lr(i::Int64, settings::Settings)
 	return (settings.LR_OFFSET+convert(Float64, i))^(-settings.LR_KAPPA)
+end
+function get_lr(epoch_count, mb, mindex,settings::Settings)
+	return (settings.LR_OFFSET+epoch_count+(mindex/length(mb)))^(-settings.LR_KAPPA)
 end
 function mean_change(new::AbstractArray{R}, old::AbstractArray{R}) where  {R<:AbstractFloat}
 	n = length(new)
