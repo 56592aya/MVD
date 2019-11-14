@@ -46,6 +46,10 @@ function main(args)
 			help = "beta2 truth"
 			arg_type = Float64
 			default = .3
+		"--constant"
+			help = "alpha_sum"
+			arg_type = Float64
+			default = 1.0
 
     end
     # # #
@@ -67,6 +71,7 @@ function main(args)
 	β2_single_truth = parsed_args["beta2"]
 	wlen1_single = parsed_args["wlen1"]
 	wlen2_single = parsed_args["wlen2"]
+	c = parsed_args["constant"]
 
 
 	# N = 10000
@@ -80,15 +85,16 @@ function main(args)
 	# wlen1_single = 250
 	# wlen2_single = 250
 	# manual  = true
+	# constant  = 1.0
 
 
-	folder = mkdir("$(N)_$(K1)_$(K2)_$(V1)_$(V2)_$(α_single_truth)_$(β1_single_truth)_$(β2_single_truth)_$(manual)")
+	folder = mkdir("$(N)_$(K1)_$(K2)_$(V1)_$(V2)_$(α_single_truth)_$(β1_single_truth)_$(β2_single_truth)_$(manual)_$(c)")
 	#########################
 	α,Α, θ,Θ, Β1, Β2, β1, β2, V1, V2, corp1, corp2 =
-	 Create_Truth(N, K1, K2, V1, V2,α_single_truth, β1_single_truth, β2_single_truth, wlen1_single, wlen2_single, manual)
+	 Create_Truth(N, K1, K2, V1, V2,α_single_truth, β1_single_truth, β2_single_truth, wlen1_single, wlen2_single, manual,c)
 
 	 α_truth,Α_truth, θ_truth,Θ_truth,Β1_truth, Β2_truth, β1_truth, β2_truth,V1, V2, corp1, corp2=
-	 simulate_data(N, K1, K2, V1, V2,α_single_truth,β1_single_truth, β2_single_truth,wlen1_single, wlen2_single, manual)
+	 simulate_data(N, K1, K2, V1, V2,α_single_truth,β1_single_truth, β2_single_truth,wlen1_single, wlen2_single, manual,c)
 
 
 

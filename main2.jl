@@ -14,6 +14,7 @@ function train(model, settings, folder, data_folder, h_map,count_params, mbs, nb
 
 			if (epoch_count % settings.EVAL_EVERY == 0) || (epoch_count == 0)
 				x1 = deepcopy(model.b1)
+				# maximum(x1)
 				for I in CartesianIndices(x1)
 					if x1[I]-.5 > 0
 						x1[I] -= .5
@@ -72,6 +73,7 @@ function train(model, settings, folder, data_folder, h_map,count_params, mbs, nb
 		copyto!(model.sum_phi_1_i,  settings.zeroer_i)
 		copyto!(model.sum_phi_2_i, settings.zeroer_i)
 
+
 		# if epoch_count < 10
 		# 	settings.MAX_GAMMA_ITER = 50
 		# else
@@ -101,17 +103,17 @@ function train(model, settings, folder, data_folder, h_map,count_params, mbs, nb
 		################################
 			 ### Hparam Learning ###
 		################################
-		if epoch_count < 2
-			nothing;
-		elseif epoch_count>=2 && epoch_count< 5
-			copyto!(model.old_Alpha,model.Alpha)
-			update_alpha_newton!(model, count_params, h_map, settings)
-			model.Alpha .= (1.0-ρ).*model.old_Alpha .+ ρ.*model.Alpha
-		else
+		# if epoch_count < 2
+		# 	nothing;
+		# elseif epoch_count >2  epoch_count < 10
+		# 	copyto!(model.old_Alpha,model.Alpha)
+		# 	update_alpha_newton!(model, count_params, h_map, settings)
+		# 	model.Alpha .= (1.0-ρ).*model.old_Alpha .+ ρ.*model.Alpha
+		# else
 			update_alpha_newton!(model,ρ, count_params,mb, h_map, settings)
 			update_beta1_newton!(model,ρ, settings)
 			update_beta2_newton!(model,ρ, settings)
-		end
+		# end
 		################################
 
 		# println(mindex == nb)
@@ -232,20 +234,20 @@ function main(args)
 	h = parsed_args["holdout"]
 	all_ = parsed_args["all"]
 	sparsity = parsed_args["sparsity"]
-	#global K1 = 5
-	#global K2 = 5
-	#global α_single_prior = .5
-	#global β1_single_prior = .5
-	#global β2_single_prior = .5
-	#global S = 256.0
-	#global κ = .6
-	#global every = 1
-	#global MAXITER = 80000
-	#global mb_size = 256
-	#global h = 0.005
-	#global data_folder = "10000_5_5_50_50_0.5_0.2_0.2_true"
-	#global all_ = true
-	#global sparsity = 0.0
+	# global K1 = 10
+	# global K2 = 10
+	# global α_single_prior = .5
+	# global β1_single_prior = .1
+	# global β2_single_prior = .1
+	# global S = 256.0
+	# global κ = .6
+	# global every = 1
+	# global MAXITER = 80000
+	# global mb_size = 256
+	# global h = 0.005
+	# global data_folder = "10000_10_10_50_50_0.9_0.1_0.1_true_10.0"
+	# global all_ = true
+	# global sparsity = 0.0
 	folder = mkdir(joinpath(data_folder,"est_$(K1)_$(K2)_$(mb_size)_$(MAXITER)_$(h)_$(S)_$(κ)_$(every)_$(α_single_prior)_$(β1_single_prior)_$(β2_single_prior)_$(all_)_$(sparsity)"))
 	@load "$(data_folder)/corpus1" Corpus1
 	@load "$(data_folder)/corpus2" Corpus2

@@ -23,21 +23,24 @@ function create_Alpha(K1::Int64, K2::Int64, prior)
 	Res = permutedims(Res, (2,1))
     return res, Res
 end
-function create_Alpha_manual(K1::Int64, K2::Int64, prior)
+function create_Alpha_manual(K1::Int64, K2::Int64, diag_, c)
 
 	@assert K1 == K2
 	Res = zeros(Float64, (K1, K2))
+	diag_prior = (diag_*c) / K1
+	off_diag = (c - diag_*c)/(K1*K2 - K1)
 	for i in 1:K1
-		Res[i,i] = prior
+		Res[i,i] = diag_prior
 		for j in 1:K1
 			if j  == i
 				continue;
 			else
-				Res[i,j] = rand(Distributions.Uniform(0.0, .1))
+				# Res[i,j] = rand(Distributions.Uniform(0.0, .1))
+				Res[i,j] = off_diag
 			end
 		end
 	end
-	Res ./= sum(Res)
+	#Res ./= sum(Res)
 	res = vectorize_mat(Res)
     return res, Res
 end
@@ -87,9 +90,9 @@ function create_corpux(N::Int64, vec_list::Matrix{Float64}, B::Matrix{Float64},
 	return corpus
 end
 
-function Create_Truth(N, K1, K2, V1, V2, prior,β1_single, β2_single, wlen1_single, wlen2_single, manual)
+function Create_Truth(N, K1, K2, V1, V2, prior,β1_single, β2_single, wlen1_single, wlen2_single, manual, c)
 
-	α, Α = manual ? create_Alpha_manual(K1, K2,prior) : create_Alpha(K1, K2,prior)
+	α, Α = manual ? create_Alpha_manual(K1, K2,prior,c) : create_Alpha(K1, K2,prior)
 	θ,Θ = create_Theta(α, N, K1, K2)
 	β1 = ones(Float64, (K1, V1)) .* β1_single
 	Β1 = create_B(β1, K1, V1)
@@ -103,14 +106,14 @@ function Create_Truth(N, K1, K2, V1, V2, prior,β1_single, β2_single, wlen1_sin
 end
 
 
-function simulate_data(N, K1, K2, V1, V2,prior,β1_single_truth, β2_single_truth,wlen1_single, wlen2_single, manual)
+function simulate_data(N, K1, K2, V1, V2,prior,β1_single_truth, β2_single_truth,wlen1_single, wlen2_single, manual,c)
 	y1 = Int64[]
  	y2 = Int64[]
  	while true
 		# prior,β1_single_truth,β2_single_truth = .99, .2, .2
 		α_truth,Α_truth, θ_truth,Θ_truth,
  		Β1_truth, Β2_truth, β1_truth, β2_truth,V1, V2, corp1, corp2 =
- 		Create_Truth(N, K1, K2, V1, V2, prior,β1_single_truth, β2_single_truth, wlen1_single, wlen2_single, manual)
+ 		Create_Truth(N, K1, K2, V1, V2, prior,β1_single_truth, β2_single_truth, wlen1_single, wlen2_single, manual,c)
 		for i in 1:N
 			# global y1, y2
          	y1 = unique(y1)

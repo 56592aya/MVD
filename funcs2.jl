@@ -58,10 +58,10 @@ end
 
 function optimize_phi_iw!(model::MVD, i::Int64, mode::Int64, v::Int64)
 	if mode == 1
-	    @. model.temp = exp(model.Elog_Theta[i] + model.Elog_B1[:,v])
+	    @. model.temp = exp(model.Elog_Theta[i] + model.Elog_B1[:,v])+1e-100
 		model.temp ./= sum(model.temp)
 	else
-		@. model.temp = exp(model.Elog_Theta[i] + model.Elog_B2[:,v]')
+		@. model.temp = exp(model.Elog_Theta[i] + model.Elog_B2[:,v]') + 1e-100
 		model.temp ./= sum(model.temp)
 	end
 end
@@ -147,10 +147,13 @@ function calc_theta_bar_i(obs1_dict::Dict{Int64,Array{Int64,1}}, obs2_dict::Dict
 		copyto!(model.sum_phi_1_i, settings.zeroer_i)
 		obs_words_corp1inds = [find_all(d,corp1.terms)[1] for d in doc1]
 		for (key,val) in enumerate(corp1.terms[obs_words_corp1inds])
+
 			optimize_phi_iw!(model, i,1,val)
 			@.(model.sstat_i = corp1.counts[key] * model.temp)
+			# println(model.sstat_i)
 			@.(model.sum_phi_1_i += model.sstat_i)
 		end
+
 		copyto!(model.sum_phi_2_i, settings.zeroer_i)
 		obs_words_corp2inds = [find_all(d,corp2.terms)[1] for d in doc2]
 		for (key,val) in enumerate(corp2.terms[obs_words_corp2inds])
@@ -182,6 +185,7 @@ function calc_perp(model::MVD,hos1_dict::Dict{Int64,Array{Int64,1}},
 	l2 = 0.0
 
 	for i in collect(keys(hos1_dict))
+
 		theta_bar = calc_theta_bar_i(obs1_dict, obs2_dict,i, model, count_params,settings)
 		for v in hos1_dict[i]
 			tmp = 0.0
@@ -212,7 +216,7 @@ function update_alpha_newton!(model::MVD, count_params::CountParams, h_map::Vect
 	cond = true
 	decay = 0
 	K = prod(size(model.Alpha))
-	Alpha = ones(Float64, 25)
+	Alpha = ones(Float64, K)
 	#Alpha = vectorize_mat(deepcopy(model.Alpha))
 	Alpha_new = zeros(Float64,K)
 	ga = zeros(Float64,K)
@@ -276,7 +280,7 @@ function update_alpha_newton!(model::MVD,ρ, count_params::CountParams,mb::Vecto
 	n = length(mb)
 	logphat = vectorize_mat(sum(Elog.(model.γ[mb]))./n)
 	K = prod(size(model.Alpha))
-	#Alpha = ones(Float64, 25)
+	#Alpha = ones(Float64, K)
 	Alpha = vectorize_mat(deepcopy(model.Alpha))
 	Alpha_new = zeros(Float64,K)
 	ga = zeros(Float64,K)

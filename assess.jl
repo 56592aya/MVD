@@ -86,23 +86,37 @@ function do_plots(model,theta_est, B1_est, B2_est, B1_truth, B2_truth, theta_tru
 			p = scatter(theta_truth_1[:,k], theta_est_1[:,k], grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
 			plts = vcat(plts, p)
 		end
-		Plots.plot(plts..., layout =(1, size(B1_est,1)), legend=false)
-		savefig("pics/thetas1.png")
-
+		if length(inds1) % 2 == 0
+			Plots.plot(plts..., layout =(2, div(length(inds1),2)), legend=false)
+			savefig("pics/thetas1.png")
+		else
+			Plots.plot(plts..., layout =(1, size(B1_est,1)), legend=false)
+			savefig("pics/thetas1.png")
+		end
 		plts = [];
 		for k in 1:length(inds1)
 			p = scatter(theta_truth_1[.!(h_map),k], theta_est_1[.!(h_map),k], grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
 			plts = vcat(plts, p)
 		end
-		Plots.plot(plts..., layout =(1, length(inds1)), legend=false)
-		savefig("pics/thetas1_train.png")
+		if length(inds1) % 2 == 0
+			Plots.plot(plts..., layout =(2, div(length(inds1),2)), legend=false)
+			savefig("pics/thetas1_train.png")
+		else
+			Plots.plot(plts..., layout =(1, length(inds1)), legend=false)
+			savefig("pics/thetas1_train.png")
+		end
 		plts = [];
 		for k in 1:length(inds1)
 			p = scatter(theta_truth_1[h_map,k], theta_est_1[h_map,k], grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
 			plts = vcat(plts, p)
 		end
-		Plots.plot(plts..., layout =(1, length(inds1)), legend=false)
-		savefig("pics/thetas1_ho.png")
+		if length(inds1) % 2 == 0
+			Plots.plot(plts..., layout =(2, div(length(inds1),2)), legend=false)
+			savefig("pics/thetas1_ho.png")
+		else
+			Plots.plot(plts..., layout =(1, length(inds1)), legend=false)
+			savefig("pics/thetas1_ho.png")
+		end
 
 
 
@@ -111,24 +125,37 @@ function do_plots(model,theta_est, B1_est, B2_est, B1_truth, B2_truth, theta_tru
 			p = scatter(theta_truth_2[:,k], theta_est_2[:,k], grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
 			plts = vcat(plts, p)
 		end
-		Plots.plot(plts..., layout =(1, length(inds2)), legend=false)
-		savefig("pics/thetas2.png")
-
+		if length(inds2) % 2 == 0
+			Plots.plot(plts..., layout =(2, div(length(inds2),2)), legend=false)
+			savefig("pics/thetas2.png")
+		else
+			Plots.plot(plts..., layout =(1, length(inds2)), legend=false)
+			savefig("pics/thetas2.png")
+		end
 		plts = [];
 		for k in 1:length(inds2)
 			p = scatter(theta_truth_2[.!(h_map),k], theta_est_2[.!(h_map),k], grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
 			plts = vcat(plts, p)
 		end
-		Plots.plot(plts..., layout =(1, length(inds2)), legend=false)
-		savefig("pics/thetas2_train.png")
+		if length(inds2) % 2 == 0
+			Plots.plot(plts..., layout =(2, div(length(inds2),2)), legend=false)
+			savefig("pics/thetas2_train.png")
+		else
+			Plots.plot(plts..., layout =(1, length(inds2)), legend=false)
+			savefig("pics/thetas2_train.png")
+		end
 		plts = [];
 		for k in 1:length(inds2)
 			p = scatter(theta_truth_2[h_map,k], theta_est_2[h_map,k], grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
 			plts = vcat(plts, p)
 		end
-		Plots.plot(plts..., layout =(1, length(inds2)), legend=false)
-		savefig("pics/thetas2_ho.png")
-
+		if length(inds2) % 2 == 0
+			Plots.plot(plts..., layout =(2, div(length(inds2),2)), legend=false)
+			savefig("pics/thetas2_ho.png")
+		else
+			Plots.plot(plts..., layout =(1, length(inds2)), legend=false)
+			savefig("pics/thetas2_ho.png")
+		end
 		absent_map = [i for i in 1:length(model.Corpus1.docs) if model.Corpus2.docs[i].len  == 0]
 		if !isempty(absent_map)
 			present_map = [i for i in 1:length(model.Corpus1.docs) if model.Corpus2.docs[i].len != 0]
@@ -137,15 +164,53 @@ function do_plots(model,theta_est, B1_est, B2_est, B1_truth, B2_truth, theta_tru
 				p = scatter(theta_truth_2[present_map,k], theta_est_2[present_map,k], grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
 				plts = vcat(plts, p)
 			end
-			Plots.plot(plts..., layout =(1, length(inds2)), legend=false)
-			savefig("pics/thetas2_present.png")
+			if length(inds2) % 2 == 0
+				Plots.plot(plts..., layout =(2, div(length(inds2),2)), legend=false)
+				savefig("pics/thetas2_present.png")
+			else
+				Plots.plot(plts..., layout =(1, length(inds2)), legend=false)
+				savefig("pics/thetas2_present.png")
+			end
+
+
+			gamma_absent = deepcopy(model.γ)
+			theta_est_absent = deepcopy(theta_est)
+			for i in absent_map
+				gamma_absent[i] = all(model.Alpha .- .5 .> 0.0) ? gamma_absent[i] .* (model.Alpha .- .5) : gamma_absent[i] .* (model.Alpha .- floor(minimum(model.Alpha),digits=2))
+				theta_est_absent[i] = gamma_absent[i] ./ sum(gamma_absent[i])
+			end
+
+			theta_est_absent_2 = zeros(Float64, (length(theta_truth), size(B2_truth,1)));
+
+			for i in absent_map
+				for j in 1:size(B2_truth,1)
+					theta_est_absent_2[i,j] = sum(theta_est_absent[i][:,inds2[j]])
+				end
+			end
+			plts = [];
+			for k in 1:length(inds2)
+				p = scatter(theta_truth_2[absent_map,k], theta_est_absent_2[absent_map,k], grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
+				plts = vcat(plts, p)
+			end
+			if length(inds2) % 2 == 0
+				Plots.plot(plts..., layout =(2, div(length(inds2),2)), legend=false)
+				savefig("pics/thetas2_absent_corrected.png")
+			else
+				Plots.plot(plts..., layout =(1, length(inds2)), legend=false)
+				savefig("pics/thetas2_absent_corrected.png")
+			end
 			plts = [];
 			for k in 1:length(inds2)
 				p = scatter(theta_truth_2[absent_map,k], theta_est_2[absent_map,k], grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
 				plts = vcat(plts, p)
 			end
-			Plots.plot(plts..., layout =(1, length(inds2)), legend=false)
-			savefig("pics/thetas2_absent.png")
+			if length(inds2) % 2 == 0
+				Plots.plot(plts..., layout =(2, div(length(inds2),2)), legend=false)
+				savefig("pics/thetas2_absent.png")
+			else
+				Plots.plot(plts..., layout =(1, length(inds2)), legend=false)
+				savefig("pics/thetas2_absent.png")
+			end
 		end
 		p1 = Plots.heatmap(model.Alpha[inds1, inds2])
 		savefig("pics/model_Alpha.png")
