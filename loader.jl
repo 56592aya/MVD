@@ -14,4 +14,4 @@ using Plots
 include("utils.jl")
 include("dgp.jl")
 # include("init.jl")
-include("funcs2.jl")
+include("funcs.jl")

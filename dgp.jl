@@ -8,10 +8,10 @@ struct Params
 	Α::Matrix{Float64}
 	Θ_vec::Matrix{Float64}
 	Θ::Vector{Matrix{Float64}}
-	β1::Matrix{Float64}
-	β2::Matrix{Float64}
-	Β1::Matrix{Float64}
-	Β2::Matrix{Float64}
+	η1::Matrix{Float64}
+	η2::Matrix{Float64}
+	ϕ1::Matrix{Float64}
+	ϕ2::Matrix{Float64}
 end
 
 
@@ -52,12 +52,12 @@ function create_Theta(vec::Vector{Float64}, N::Int64, K1::Int64, K2::Int64)
 end
 
 
-function create_B(beta_prior::Matrix{Float64}, K::Int64, V::Int64)
-	B = zeros(Float64, (K, V))
+function create_ϕ(η_prior::Matrix{Float64}, K::Int64, V::Int64)
+	ϕ = zeros(Float64, (K, V))
 	for k in 1:K
-		B[k,:] = rand(Dirichlet(beta_prior[k,:]))
+		ϕ[k,:] = rand(Dirichlet(η_prior[k,:]))
 	end
-    return B
+    return ϕ
 end
 
 function create_doc(wlen::Int64, topic_dist_vec::Vector{Float64},
@@ -78,42 +78,42 @@ function create_doc(wlen::Int64, topic_dist_vec::Vector{Float64},
 	end
 	return doc
 end
-function create_corpux(N::Int64, vec_list::Matrix{Float64}, B::Matrix{Float64},
+function create_corpux(N::Int64, vec_list::Matrix{Float64}, ϕ::Matrix{Float64},
 	 				   K1::Int64, K2::Int64, wlens::Vector{Int64}, mode_::Int64)
 
 	corpus = [Int64[] for i in 1:N]
 	for i in 1:N
 
-		doc  = create_doc(wlens[i], vec_list[i,:] ,B, mode_, K1, K2)
+		doc  = create_doc(wlens[i], vec_list[i,:] ,ϕ, mode_, K1, K2)
 		corpus[i] = vcat(corpus[i], doc)
 	end
 	return corpus
 end
 
-function Create_Truth(N, K1, K2, V1, V2, prior,β1_single, β2_single, wlen1_single, wlen2_single, manual, c)
+function Create_Truth(N, K1, K2, V1, V2, prior,η1_single, η2_single, wlen1_single, wlen2_single, manual, c)
 
 	α, Α = manual ? create_Alpha_manual(K1, K2,prior,c) : create_Alpha(K1, K2,prior)
 	θ,Θ = create_Theta(α, N, K1, K2)
-	β1 = ones(Float64, (K1, V1)) .* β1_single
-	Β1 = create_B(β1, K1, V1)
-	β2 = ones(Float64, (K2, V2)) .* β2_single
-	Β2 = create_B(β2, K2, V2)
+	η1 = ones(Float64, (K1, V1)) .* η1_single
+	ϕ1 = create_ϕ(η1, K1, V1)
+	η2 = ones(Float64, (K2, V2)) .* η2_single
+	ϕ2 = create_ϕ(η2, K2, V2)
 	wlens1 = [wlen1_single for i in 1:N]
 	wlens2 = [wlen2_single for i in 1:N]
-	corp1 = create_corpux(N, θ, Β1,K1,K2, wlens1, 1)
-	corp2 = create_corpux(N, θ, Β2,K1,K2, wlens2, 2)
-	return α,Α, θ,Θ, Β1, Β2, β1, β2, V1, V2, corp1, corp2
+	corp1 = create_corpux(N, θ, ϕ1,K1,K2, wlens1, 1)
+	corp2 = create_corpux(N, θ, ϕ2,K1,K2, wlens2, 2)
+	return α,Α, θ,Θ, ϕ1, ϕ2, η1, η2, V1, V2, corp1, corp2
 end
 
 
-function simulate_data(N, K1, K2, V1, V2,prior,β1_single_truth, β2_single_truth,wlen1_single, wlen2_single, manual,c)
+function simulate_data(N, K1, K2, V1, V2,prior,η1_single_truth, η2_single_truth,wlen1_single, wlen2_single, manual,c)
 	y1 = Int64[]
  	y2 = Int64[]
  	while true
 		# prior,β1_single_truth,β2_single_truth = .99, .2, .2
 		α_truth,Α_truth, θ_truth,Θ_truth,
- 		Β1_truth, Β2_truth, β1_truth, β2_truth,V1, V2, corp1, corp2 =
- 		Create_Truth(N, K1, K2, V1, V2, prior,β1_single_truth, β2_single_truth, wlen1_single, wlen2_single, manual,c)
+ 		ϕ1_truth, ϕ2_truth, η1_truth, η2_truth,V1, V2, corp1, corp2 =
+ 		Create_Truth(N, K1, K2, V1, V2, prior,η1_single_truth, η2_single_truth, wlen1_single, wlen2_single, manual,c)
 		for i in 1:N
 			# global y1, y2
          	y1 = unique(y1)
@@ -124,7 +124,7 @@ function simulate_data(N, K1, K2, V1, V2,prior,β1_single_truth, β2_single_trut
  		y1 = unique(y1)
  		y2 = unique(y2)
  		if ((length(y1) == V1) && (length(y2) == V2))
-             return α_truth,Α_truth, θ_truth,Θ_truth,Β1_truth, Β2_truth, β1_truth, β2_truth,V1, V2, corp1, corp2
+             return α_truth,Α_truth, θ_truth,Θ_truth,ϕ1_truth, ϕ2_truth, η1_truth, η2_truth,V1, V2, corp1, corp2
  		else
          	y1 = Int64[]
          	y2 = Int64[]

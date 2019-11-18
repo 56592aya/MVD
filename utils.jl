@@ -26,60 +26,60 @@ mutable struct MVD
     K2::Int64
     Corpus1::Corpus
     Corpus2::Corpus
-    Alpha::Matrix{Float64}
-    old_Alpha::Matrix{Float64}
-    B1::Matrix{Float64}
-    old_B1::Matrix{Float64}
-	B2::Matrix{Float64}
-    old_B2::Matrix{Float64}
-    Elog_B1::Matrix{Float64}
-    Elog_B2::Matrix{Float64}
-    Elog_Theta::MatrixList{Float64}
+    α::Matrix{Float64}
+    old_α::Matrix{Float64}
+    η1::Matrix{Float64}
+    old_η1::Matrix{Float64}
+	η2::Matrix{Float64}
+    old_η2::Matrix{Float64}
+    Elog_ϕ1::Matrix{Float64}
+    Elog_ϕ2::Matrix{Float64}
+    Elog_Θ::MatrixList{Float64}
     γ::MatrixList{Float64}
     old_γ::Matrix{Float64}
-    b1::Matrix{Float64}
-    old_b1::Matrix{Float64}
-    b2::Matrix{Float64}
-    old_b2::Matrix{Float64}
-	temp::Matrix{Float64}
+    λ1::Matrix{Float64}
+    old_λ1::Matrix{Float64}
+    λ2::Matrix{Float64}
+    old_λ2::Matrix{Float64}
+	π_temp::Matrix{Float64}
 	sstat_i::Matrix{Float64}
 	sstat_mb_1::Vector{Float64}
 	sstat_mb_2::Vector{Float64}
-	sum_phi_1_mb::Matrix{Float64}
-	sum_phi_2_mb::Matrix{Float64}
-	sum_phi_1_i::Matrix{Float64}
-	sum_phi_2_i::Matrix{Float64}
+	sum_π_1_mb::Matrix{Float64}
+	sum_π_2_mb::Matrix{Float64}
+	sum_π_1_i::Matrix{Float64}
+	sum_π_2_i::Matrix{Float64}
 	# alpha_sstat::MatrixList{Float64}
 	function MVD(K1::Int64, K2::Int64, Corpus1::Corpus, Corpus2::Corpus,
-		 		alpha_prior_::Float64, beta1_prior_::Float64, beta2_prior_::Float64)
+		 		alpha_prior_::Float64, eta1_prior_::Float64, eta2_prior_::Float64)
 		model = new()
 		model.K1 = K1
 		model.K2 = K2
 		model.Corpus1 = Corpus1
 		model.Corpus2 = Corpus2
-		model.Alpha = matricize_vec(rand(Uniform(0.0,alpha_prior_), (K1*K2)), K1, K2)
-		model.old_Alpha = deepcopy(model.Alpha)
-		model.B1 = collect(repeat(rand(Uniform(0.0, beta1_prior_), model.Corpus1.V), inner=(1, K1))')
-		model.old_B1 = deepcopy(model.B1)
-		model.B2 = collect(repeat(rand(Uniform(0.0, beta2_prior_), model.Corpus2.V), inner=(1, K2))')
-		model.old_B2 = deepcopy(model.B2)
-		model.Elog_B1 = zeros(Float64, (K1, model.Corpus1.V))
-		model.Elog_B2 = zeros(Float64, (K2, model.Corpus2.V))
-		model.Elog_Theta = [zeros(Float64, (K1, K2)) for i in 1:model.Corpus1.N]
+		model.α = matricize_vec(rand(Uniform(0.0,alpha_prior_), (K1*K2)), K1, K2)
+		model.old_α = deepcopy(model.α)
+		model.η1 = collect(repeat(rand(Uniform(0.0, eta1_prior_), model.Corpus1.V), inner=(1, K1))')
+		model.old_η1 = deepcopy(model.η1)
+		model.η2 = collect(repeat(rand(Uniform(0.0, eta2_prior_), model.Corpus2.V), inner=(1, K2))')
+		model.old_η2 = deepcopy(model.η2)
+		model.Elog_ϕ1 = zeros(Float64, (K1, model.Corpus1.V))
+		model.Elog_ϕ2 = zeros(Float64, (K2, model.Corpus2.V))
+		model.Elog_Θ = [zeros(Float64, (K1, K2)) for i in 1:model.Corpus1.N]
 		model.γ = [ones(Float64, (K1, K2)) for i in 1:model.Corpus1.N]
 		model.old_γ = zeros(Float64, (K1, K2))
-		model.b1 = deepcopy(model.B1)
-		model.old_b1 = deepcopy(model.b1)
-		model.b2 = deepcopy(model.B2)
-		model.old_b2 = deepcopy(model.b2)
-		model.temp = zeros(Float64, (K1, K2))
+		model.λ1 = deepcopy(model.η1)
+		model.old_λ1 = deepcopy(model.λ1)
+		model.λ2 = deepcopy(model.η2)
+		model.old_λ2 = deepcopy(model.λ2)
+		model.π_temp = zeros(Float64, (K1, K2))
 		model.sstat_i = zeros(Float64, (K1, K2))
 		model.sstat_mb_1 = zeros(Float64, K1)
 		model.sstat_mb_2 = zeros(Float64, K2)
-		model.sum_phi_1_mb = zeros(Float64, (K1,model.Corpus1.V))
-		model.sum_phi_2_mb = zeros(Float64, (K1,model.Corpus1.V))
-		model.sum_phi_1_i =  zeros(Float64, (K1, K2))
-		model.sum_phi_2_i =  zeros(Float64, (K1, K2))
+		model.sum_π_1_mb = zeros(Float64, (K1,model.Corpus1.V))
+		model.sum_π_2_mb = zeros(Float64, (K1,model.Corpus1.V))
+		model.sum_π_1_i =  zeros(Float64, (K1, K2))
+		model.sum_π_2_i =  zeros(Float64, (K1, K2))
 		return model
 	end
 end
@@ -186,7 +186,6 @@ function matricize_vec(vec_::Vector{Int64}, K1::Int64, K2::Int64)
 	return mat_
 end
 
-
 function δ(i::Int64,j::Int64)
 	if i == j
 		return 1
@@ -222,39 +221,39 @@ function logsumexp(X::Vector{Float64})
     log(r) + alpha
 end
 function logsumexp(X::Matrix{Float64})
-    alpha = -Inf::Float64;
+    s = -Inf::Float64;
 	r = 0.0;
     @inbounds for x in X
-        if x <= alpha
-            r += exp(x - alpha)
+        if x <= s
+            r += exp(x - s)
         else
-            r *= exp(alpha - x)
+            r *= exp(s - x)
             r += 1.0
-            alpha = x
+            s = x
         end
     end
-    log(r) + alpha
+    log(r) + s
 end
 
 
 function logsumexp(X::Float64, Y::Float64)
-    alpha = -Inf::Float64;
+    s = -Inf::Float64;
 	r = 0.0;
-    if X <= alpha
-        r += exp(X - alpha)
+    if X <= s
+        r += exp(X - s)
     else
-        r *= exp(alpha - X)
+        r *= exp(s - X)
         r += 1.0
-        alpha = X
+        s = X
     end
-    if Y <= alpha
-        r += exp(Y - alpha)
+    if Y <= s
+        r += exp(Y - s)
     else
-        r *= exp(alpha - Y)
+        r *= exp(s - Y)
         r += 1.0
-        alpha = Y
+        s = Y
     end
-    log(r) + alpha
+    log(r) + s
 end
 
 function softmax!(MEM::Matrix{Float64},X::Matrix{Float64})

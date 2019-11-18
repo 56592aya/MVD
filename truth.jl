@@ -38,12 +38,12 @@ function main(args)
 			help = "alpha truth"
 			arg_type = Float64
 			default = .3
-		"--beta1"
-			help = "beta1 truth"
+		"--eta1"
+			help = "eta1 truth"
 			arg_type = Float64
 			default = .3
-		"--beta2"
-			help = "beta2 truth"
+		"--eta2"
+			help = "eta2 truth"
 			arg_type = Float64
 			default = .3
 		"--constant"
@@ -67,8 +67,8 @@ function main(args)
 	V1 = parsed_args["v1"]
 	V2 = parsed_args["v2"]
 	α_single_truth = parsed_args["alpha"]
-	β1_single_truth = parsed_args["beta1"]
-	β2_single_truth = parsed_args["beta2"]
+	η1_single_truth = parsed_args["eta1"]
+	η2_single_truth = parsed_args["eta2"]
 	wlen1_single = parsed_args["wlen1"]
 	wlen2_single = parsed_args["wlen2"]
 	c = parsed_args["constant"]
@@ -80,27 +80,27 @@ function main(args)
 	# V1 = 100
 	# V2 = 100
 	# α_single_truth = 1.1
-	# β1_single_truth = .05
-	# β2_single_truth = .05
+	# η1_single_truth = .05
+	# η2_single_truth = .05
 	# wlen1_single = 250
 	# wlen2_single = 250
 	# manual  = true
 	# constant  = 1.0
 
 
-	folder = mkdir("$(N)_$(K1)_$(K2)_$(V1)_$(V2)_$(α_single_truth)_$(β1_single_truth)_$(β2_single_truth)_$(manual)_$(c)")
+	folder = mkdir("$(N)_$(K1)_$(K2)_$(V1)_$(V2)_$(α_single_truth)_$(η1_single_truth)_$(η2_single_truth)_$(manual)_$(c)")
 	#########################
-	α,Α, θ,Θ, Β1, Β2, β1, β2, V1, V2, corp1, corp2 =
-	 Create_Truth(N, K1, K2, V1, V2,α_single_truth, β1_single_truth, β2_single_truth, wlen1_single, wlen2_single, manual,c)
+	α,Α, θ,Θ, ϕ1, ϕ2, η1, η2, V1, V2, corp1, corp2 =
+	 Create_Truth(N, K1, K2, V1, V2,α_single_truth, η1_single_truth, η2_single_truth, wlen1_single, wlen2_single, manual,c)
 
-	 α_truth,Α_truth, θ_truth,Θ_truth,Β1_truth, Β2_truth, β1_truth, β2_truth,V1, V2, corp1, corp2=
-	 simulate_data(N, K1, K2, V1, V2,α_single_truth,β1_single_truth, β2_single_truth,wlen1_single, wlen2_single, manual,c)
-
-
+	 α_truth,Α_truth, θ_truth,Θ_truth,ϕ1_truth, ϕ2_truth, η1_truth, η2_truth,V1, V2, corp1, corp2=
+	 simulate_data(N, K1, K2, V1, V2,α_single_truth,η1_single_truth, η2_single_truth,wlen1_single, wlen2_single, manual,c)
 
 
 
-	Truth_Params = Params(N,K1,K2,V1,V2,α_truth,Α_truth,θ_truth,Θ_truth,β1_truth,β2_truth,Β1_truth,Β2_truth)
+
+
+	Truth_Params = Params(N,K1,K2,V1,V2,α_truth,Α_truth,θ_truth,Θ_truth,η1_truth,η2_truth,ϕ1_truth,ϕ2_truth)
 	@save "$(folder)/truth" Truth_Params
 	Docs1 = [Document(corp1[i], corp1[i], length(corp1[i])) for i in 1:length(corp1)]
 	Docs2 = [Document(corp2[i], corp2[i], length(corp2[i])) for i in 1:length(corp2)]
@@ -112,12 +112,12 @@ function main(args)
 	@save "$(folder)/corpus1" Corpus1
 	@save "$(folder)/corpus2" Corpus2
 
-	B11,chert1 = sort_by_argmax!(deepcopy(collect(transpose(Truth_Params.Β1))))
-	B22,chert2 = sort_by_argmax!(deepcopy(collect(transpose(Truth_Params.Β2))))
-	Plots.heatmap(B11, yflip=true)
-	savefig("$(folder)/B1_truth.png")
-	Plots.heatmap(B22, yflip=true)
-	savefig("$(folder)/B2_truth.png")
+	ϕ11,chert1 = sort_by_argmax!(deepcopy(collect(transpose(Truth_Params.ϕ1))))
+	ϕ22,chert2 = sort_by_argmax!(deepcopy(collect(transpose(Truth_Params.ϕ2))))
+	Plots.heatmap(ϕ11, yflip=true)
+	savefig("$(folder)/phi1_truth.png")
+	Plots.heatmap(ϕ22, yflip=true)
+	savefig("$(folder)/phi2_truth.png")
 	Plots.heatmap(Truth_Params.Α, yflip=true)
 	savefig("$(folder)/Alpha_truth.png")
 end

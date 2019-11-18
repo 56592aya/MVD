@@ -13,6 +13,6 @@ end
 
 include("../../assess.jl")
 model = read_model(eee);
-theta_est,B1_est, B2_est, B1_truth, B2_truth,theta_truth, inds1, inds2 = do_Bs(model);
-theta_truth_1,theta_truth_2,theta_est_1,theta_est_2 = do_plots(model, theta_est,B1_est, B2_est, B1_truth, B2_truth, theta_truth,inds1, inds2);
+theta_est,ϕ1_est, ϕ2_est, ϕ1_truth, ϕ2_truth,theta_truth, inds1, inds2 = do_ϕs(model);
+theta_truth_1,theta_truth_2,theta_est_1,theta_est_2 = do_plots(model, theta_est,ϕ1_est, ϕ2_est, ϕ1_truth, ϕ2_truth, theta_truth,inds1, inds2);
 @load "h_map" h_map;
