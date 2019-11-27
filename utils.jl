@@ -77,7 +77,7 @@ mutable struct MVD
 		model.sstat_mb_1 = zeros(Float64, K1)
 		model.sstat_mb_2 = zeros(Float64, K2)
 		model.sum_π_1_mb = zeros(Float64, (K1,model.Corpus1.V))
-		model.sum_π_2_mb = zeros(Float64, (K1,model.Corpus1.V))
+		model.sum_π_2_mb = zeros(Float64, (K1,model.Corpus2.V))
 		model.sum_π_1_i =  zeros(Float64, (K1, K2))
 		model.sum_π_2_i =  zeros(Float64, (K1, K2))
 		return model

@@ -1,36 +1,21 @@
-include("loader.jl")
+include("loader2.jl")
 Random.seed!(1234)
 
 function train(model, settings, folder, data_folder, h_map,count_params, mbs, nb, mb_size,perp1_list,perp2_list,VI_CONVERGED,
 	hos1_dict,obs1_dict,hos2_dict,obs2_dict, mindex, epoch_count)
 	@info "VI Started"
-	for iter in 1:settings.MAX_VI_ITER
+	for iter in 1:settings._MAX_VI_ITER
 		# iter = 1
 		# global model, mindex, nb, mbs, count_params,mb_size, perp1_list, perp2_list,epoch_count,settings, VI_CONVERGED, h_map,hos1_dict,obs1_dict,hos2_dict,obs2_dict
 		if mindex == (nb+1) || iter == 1
-
-			mbs, nb = epoch_batches(model.Corpus1.N, mb_size, h_map)
+			mbs, nb = epoch_batches(model._corpus1._D, mb_size, h_map)
 			mindex = 1
-
-			if (epoch_count % settings.EVAL_EVERY == 0) || (epoch_count == 0)
-				x1 = deepcopy(model.b1)
-				# maximum(x1)
-				for I in CartesianIndices(x1)
-					if x1[I]-.5 > 0
-						x1[I] -= .5
-					end
-				end
-				x2 = deepcopy(model.b2)
-				for I in CartesianIndices(x2)
-					if x2[I]-.5 > 0
-						x2[I] -= .5
-					end
-				end
-				B1_est = estimate_B(x1)
-				B2_est = estimate_B(x2)
+			if (epoch_count % settings._EVAL_EVERY == 0) || (epoch_count == 0)
+				ϕ1_est = estimate_ϕ(model._λ1)
+				ϕ2_est = estimate_ϕ(model._λ2)
 				@info "starting to calc perp"
 				p1, p2 = calc_perp(model,hos1_dict,obs1_dict,hos2_dict,obs2_dict,
-				count_params, B1_est, B2_est,settings)
+				count_params, ϕ1_est, ϕ2_est, settings)
 				perp1_list = vcat(perp1_list, p1)
 				@info "perp1=$(p1)"
 				perp2_list = vcat(perp2_list, p2)
@@ -40,110 +25,52 @@ function train(model, settings, folder, data_folder, h_map,count_params, mbs, nb
 				@save "$(folder)/model_at_epoch_$(epoch_count)"  model
 
 				if length(perp1_list) > 2
-					if (abs(perp1_list[end]-perp1_list[end-1])/perp1_list[end] < settings.VI_THRESHOLD) &&
-						(abs(perp2_list[end]-perp2_list[end-1])/perp2_list[end] < settings.VI_THRESHOLD)
+					if (abs(perp1_list[end]-perp1_list[end-1])/perp1_list[end] < settings._VI_THRESHOLD) &&
+						(abs(perp2_list[end]-perp2_list[end-1])/perp2_list[end] < settings._VI_THRESHOLD)
 						VI_CONVERGED  = true
 					end
 				end
 			end
 		end
-
 		if mindex  == nb
 			epoch_count += 1
-			if epoch_count % settings.EVAL_EVERY == 0
+			if epoch_count % settings._EVAL_EVERY == 0
 				@info "i:$(iter) epoch :$(epoch_count)"
 
 			end
 		end
-
-		mb = mbs[mindex]
-		len_mb2 = length([i for i in mb if model.Corpus2.docs[i].len != 0]) ##func this
-		ρ = get_lr(iter,settings)
-		#ρ = get_lr(epoch_count, mb,mindex,settings)
 		################################
 			 ### Local Step ###
 		################################
-		for i in mb
-
-			# model.γ[i] .= 1.0
-			model.γ[i] = rand(Gamma(100.0, 0.01), (model.K1,model.K2))
-		end
-		copyto!(model.sum_phi_1_mb, settings.zeroer_mb_1)
-		copyto!(model.sum_phi_2_mb, settings.zeroer_mb_2)
-		copyto!(model.sum_phi_1_i,  settings.zeroer_i)
-		copyto!(model.sum_phi_2_i, settings.zeroer_i)
-
-
-		# if epoch_count < 10
-		# 	settings.MAX_GAMMA_ITER = 50
-		# else
-		# 	settings.MAX_GAMMA_ITER = 50
-		# end
-
-		for i in mb
-
-			update_Elogtheta_i!(model, i)
-			doc1 = model.Corpus1.docs[i]
-			doc2 = model.Corpus2.docs[i]
-			copyto!(model.old_γ, model.γ[i])
-			gamma_c = false
-			update_phis_gammas!(model, i,settings,doc1,doc2,gamma_c)
-		end
+		mb = mbs[mindex]
+		len_mb2 = length([d for d in mb if model._corpus2._docs[d]._length != 0]) ##func this
+		ρ = get_ρ(iter,settings)
+		init_γs!(model, mb)
+		init_sstats!(model, settings)
+		@btime update_local!(model, settings, mb)
 		################################
 			  ### Global Step ###
 		################################
-		copyto!(model.old_b1,  model.b1)
-		optimize_b!(model.b1, length(mb), model.B1, model.sum_phi_1_mb, count_params.N)
-		model.b1 .= (1.0-ρ).*model.old_b1 .+ ρ.*model.b1
-		update_Elogb!(model, 1)
-		copyto!(model.old_b2,model.b2)
-		optimize_b!(model.b2,len_mb2, model.B2, model.sum_phi_2_mb,count_params.N2)
-		model.b2 .= (1.0-ρ).*model.old_b2 .+ ρ.*model.b2
-		update_Elogb!(model, 2)
+		update_global!(model, ρ, count_params, mb,len_mb2)
 		################################
 			 ### Hparam Learning ###
 		################################
-		# if epoch_count < 2
-		# 	nothing;
-		# elseif epoch_count >2  epoch_count < 10
-		# 	copyto!(model.old_Alpha,model.Alpha)
-		# 	update_alpha_newton!(model, count_params, h_map, settings)
-		# 	model.Alpha .= (1.0-ρ).*model.old_Alpha .+ ρ.*model.Alpha
-		# else
-			update_alpha_newton!(model,ρ, count_params,mb, h_map, settings)
-			update_beta1_newton!(model,ρ, settings)
-			update_beta2_newton!(model,ρ, settings)
-		# end
+		update_α_newton_mb!(model,ρ, count_params,mb, h_map, settings)
+		update_η1_newton_mb!(model,ρ, settings)
+		update_η2_newton_mb!(model,ρ, settings)
 		################################
-
-		# println(mindex == nb)
 		mindex += 1
-		#iter += 1
+		# iter += 1
+
 		################################
 			###For FINAL Rounds###
 		################################
-		if iter == settings.MAX_VI_ITER || VI_CONVERGED
+		if iter == settings._MAX_VI_ITER || VI_CONVERGED
 			@info "Final rounds"
-			mb = collect(1:count_params.N)[.!h_map]
-			for i in mb
-				model.γ[i] .= 1.0
-			end
-			copyto!(model.sum_phi_1_mb, settings.zeroer_mb_1)
-			copyto!(model.sum_phi_2_mb, settings.zeroer_mb_1)
-			copyto!(model.sum_phi_1_i,  settings.zeroer_i)
-			copyto!(model.sum_phi_2_i, settings.zeroer_i)
-			for i in mb
-				update_Elogtheta_i!(model, i)
-				doc1 = model.Corpus1.docs[i]
-				doc2 = model.Corpus2.docs[i]
-				copyto!(model.old_γ, model.γ[i])
-				gamma_c = false
-				update_phis_gammas!(model, i,settings,doc1,doc2,gamma_c)
-			end
-			optimize_b!(model.b1, length(mb), model.B1, model.sum_phi_1_mb, count_params.N)
-			update_Elogb!(model, 1)
-			optimize_b!(model.b2,len_mb2, model.B2, model.sum_phi_2_mb,count_params.N2)
-			update_Elogb!(model, 2)
+			mb = collect(1:model._corpus1._D)[.!h_map]
+			len_mb2 = length([d for d in mb if model._corpus2._docs[d]._length != 0]) ##func this
+			update_local!(model, settings, mb)
+			update_global!(model,1.0,count_params,mb,len_mb2)
 			break
 		end
 	end
@@ -194,12 +121,12 @@ function main(args)
 			help = "alpha prior"
 			arg_type = Float64
 			default = .3
-		"--beta1_prior"
-			help = "beta1 prior"
+		"--eta1_prior"
+			help = "eta1 prior"
 			arg_type = Float64
 			default = .3
-		"--beta2_prior"
-			help = "beta2 prior"
+		"--eta2_prior"
+			help = "eta2 prior"
 			arg_type = Float64
 			default = .3
 		"-S"
@@ -220,12 +147,12 @@ function main(args)
     end
     @info "before parsing"
 
-	data_folder = parsed_args["data"]
+	data_folder = joinpath("Data",parsed_args["data"])
 	K1 = parsed_args["k1"]
 	K2 = parsed_args["k2"]
 	α_single_prior = parsed_args["alpha_prior"]
-	β1_single_prior = parsed_args["beta1_prior"]
-	β2_single_prior = parsed_args["beta2_prior"]
+	η1_single_prior = parsed_args["eta1_prior"]
+	η2_single_prior = parsed_args["eta2_prior"]
 	S = parsed_args["S"]
 	κ = parsed_args["kappa"]
 	every = parsed_args["every"]
@@ -234,43 +161,46 @@ function main(args)
 	h = parsed_args["holdout"]
 	all_ = parsed_args["all"]
 	sparsity = parsed_args["sparsity"]
-	# global K1 = 10
-	# global K2 = 10
-	# global α_single_prior = .5
-	# global β1_single_prior = .1
-	# global β2_single_prior = .1
+	# global K1 = 5
+	# global K2 = 5
+	# global α_single_prior = .04
+	# global η1_single_prior = .02
+	# global η2_single_prior = .02
 	# global S = 256.0
-	# global κ = .6
+	# global κ = .7
 	# global every = 1
 	# global MAXITER = 80000
 	# global mb_size = 256
 	# global h = 0.005
-	# global data_folder = "10000_10_10_50_50_0.9_0.1_0.1_true_10.0"
+	# global data_folder = joinpath("Data","10000_5_5_50_50_0.25_0.25_uni_0.9_1.0")
 	# global all_ = true
 	# global sparsity = 0.0
-	folder = mkdir(joinpath(data_folder,"est_$(K1)_$(K2)_$(mb_size)_$(MAXITER)_$(h)_$(S)_$(κ)_$(every)_$(α_single_prior)_$(β1_single_prior)_$(β2_single_prior)_$(all_)_$(sparsity)"))
+	folder = mkdir(joinpath(data_folder,"est_$(K1)_$(K2)_$(mb_size)_$(MAXITER)_$(h)_$(S)_$(κ)_$(every)_$(α_single_prior)_$(η1_single_prior)_$(η2_single_prior)_$(all_)_$(sparsity)"))
+	cp("funcs.jl","$(folder)/funcs_used.jl")
+	cp("main.jl","$(folder)/main_used.jl")
 	@load "$(data_folder)/corpus1" Corpus1
 	@load "$(data_folder)/corpus2" Corpus2
-	N = max(Corpus1.N, Corpus2.N)
-	model = MVD(K1, K2, Corpus1, Corpus2, α_single_prior,β1_single_prior,β2_single_prior)
+	D = max(Corpus1._D, Corpus2._D)
+	model = MVD(K1, K2, Corpus1, Corpus2, α_single_prior,η1_single_prior,η2_single_prior)
 	fix_corp!(model, folder)
 	figure_sparsity!(model,sparsity,all_, folder)
-	h_map = setup_hmap(model, h,N)
+	h_map = setup_hmap(model, h,D)
 	@save "$(folder)/h_map" h_map
-	mbs, nb = epoch_batches(N, mb_size, h_map)
+	mbs, nb = epoch_batches(D, mb_size, h_map)
 	mindex, epoch_count = 1,0
 	hos1_dict,obs1_dict,hos2_dict,obs2_dict =split_ho_obs(model, h_map)
-	N2 = sum([1 for i in collect(1:model.Corpus1.N)[.!h_map] if model.Corpus2.docs[i].len != 0])
-	count_params = CountParams(model.Corpus1.N-sum(h_map),N2, model.K1, model.K2)
-	update_Elogtheta!(model.Elog_Theta, model.γ)
-	update_Elogb!(model,1)
-	update_Elogb!(model,2)
+	D2 = sum([1 for i in collect(1:model._corpus1._D)[.!h_map] if model._corpus2._docs[i]._length != 0])
+	count_params = TrainCounts(model._corpus1._D-sum(h_map),D2, model._K1, model._K2)
+
+	# update_ElogΘ!(model.Elog_Θ, model.γ)
+	dir_expectationByRow!(model._elogϕ1, model._λ1)
+	dir_expectationByRow!(model._elogϕ2, model._λ2)
 	VI_CONVERGED = false
 	perp1_list = Float64[]
 	perp2_list = Float64[]
 	MAX_VI_ITER = MAXITER
 	MAX_ALPHA_ITER = 1000
-	MAX_GAMMA_ITER = 350
+	MAX_GAMMA_ITER = 1000
 	MAX_ALPHA_DECAY= 10
 	ALPHA_DECAY_FACTOR = .8
 	ALPHA_THRESHOLD = 1e-5
@@ -278,7 +208,7 @@ function main(args)
 	VI_THRESHOLD = 1e-8
 	EVAL_EVERY = every
 	LR_OFFSET, LR_KAPPA = S, κ
-	settings = Settings(model.K1, model.K2, model.Corpus1, model.Corpus2,
+	settings = Settings(model._K1, model._K2, model._corpus1, model._corpus2,
 	MAX_VI_ITER,MAX_ALPHA_ITER,MAX_GAMMA_ITER,MAX_ALPHA_DECAY,
 	ALPHA_DECAY_FACTOR,ALPHA_THRESHOLD,GAMMA_THRESHOLD,VI_THRESHOLD,
 	EVAL_EVERY, LR_OFFSET, LR_KAPPA)

@@ -57,17 +57,9 @@ function optimize_γi_perp!(model::MVD, i::Int64)
 end
 function optimize_λ!(lambda_::Matrix{Float64},len_mb::Int64, model_eta::Matrix{Float64}, sum_π_mb::Matrix{Float64},N::Int64)
 	copyto!(lambda_, model_eta)
-	@.(lambda_ += .5 + (N/len_mb) * sum_π_mb)
+	#@.(lambda_ +=  (N/len_mb) * sum_π_mb)
+	@.(lambda_ += 0.5 + (N/len_mb) * sum_π_mb)
 end
-
-# function optimize_phi_iw!(model::MVD, i::Int64, mode::Int64, v::Int64)
-# 	if mode == 1
-# 	    softmax!(model.π_temp, @.(model.Elog_Θ[i] + model.Elog_ϕ1[:,v]))
-# 	else
-# 		softmax!(model.π_temp, @.(model.Elog_Θ[i] + model.Elog_ϕ2[:,v]'))
-# 	end
-# end
-
 function optimize_π_iw!(model::MVD, i::Int64, mode::Int64, v::Int64)
 	if mode == 1
 	    @. model.π_temp = exp(model.Elog_Θ[i] + model.Elog_ϕ1[:,v])+1e-100
@@ -77,12 +69,21 @@ function optimize_π_iw!(model::MVD, i::Int64, mode::Int64, v::Int64)
 		model.π_temp ./= sum(model.π_temp)
 	end
 end
+
+# function optimize_π_iw!(model::MVD, i::Int64, mode::Int64, v::Int64)
+# 	if mode == 1
+# 	    @. model.π_temp = (expElog_Θ[i] * expElog_ϕ1[:,v])+1e-100
+# 		model.π_temp ./= sum(model.π_temp)
+# 	else
+# 		@. model.π_temp = (expElog_Θ[i] * expElog_ϕ2[:,v]') + 1e-100
+# 		model.π_temp ./= sum(model.π_temp)
+# 	end
+# end
 #back to copy
 function update_local!(model::MVD, i::Int64,settings::Settings,doc1::Document,doc2::Document,gamma_flag::Bool)
 
 	counter  = 0::Int64
 	gamma_change = 500.0::Float64
-
 	while !( gamma_flag) && counter <= settings.MAX_GAMMA_ITER
 		# global counter, MAXLOOP,old_change, gamma_change
 		model.sum_π_1_i .= settings.zeroer_i
@@ -100,14 +101,16 @@ function update_local!(model::MVD, i::Int64,settings::Settings,doc1::Document,do
 		end
 		if doc2.len > 0
 			optimize_γi!(model, i)
-		else
+			#optimize_γi!(model, i)
+		else ## or possibly if K >5
 			optimize_γi_perp!(model, i)
 		end
 		update_ElogΘ_i!(model,i)
 		gamma_change = mean_change(model.γ[i], model.old_γ)
-		# println(gamma_change)
 		# println(mean(abs.((model.γ[i] .- model.old_γ)/model.old_γ)))
-		# model.old_γ .= model.γ[i]#remove
+		#println(gamma_change)
+		#model.old_γ .= model.γ[i]#remove
+		#counter+=1
 		if (gamma_change < settings.GAMMA_THRESHOLD) || counter == settings.MAX_GAMMA_ITER
 			gamma_flag = true
 			model.sum_π_1_i .= settings.zeroer_i
@@ -133,6 +136,7 @@ function update_local!(model::MVD, i::Int64,settings::Settings,doc1::Document,do
 			if doc2.len > 0
 				optimize_γi!(model, i)
 			else
+				#optimize_γi_perp!(model, i)
 				optimize_γi_perp!(model, i)
 			end
 			update_ElogΘ_i!(model,i)
@@ -147,6 +151,7 @@ function update_local!(model::MVD, i::Int64,settings::Settings,doc1::Document,do
 	end
 	# println(counter)
 end
+
 function calc_Θ_bar_i(obs1_dict::Dict{Int64,Array{Int64,1}}, obs2_dict::Dict{Int64,Array{Int64,1}},
 	 i::Int64, model::MVD, count_params::CountParams,settings::Settings)
 	update_ElogΘ_i!(model, i)
@@ -294,9 +299,14 @@ function update_α_newton_iterative!(model::MVD, count_params::CountParams, h_ma
 end
 
 function update_α_newton_mb!(model::MVD,ρ, count_params::CountParams,mb::Vector{Int64}, h_map::Vector{Bool}, settings::Settings)
+	#all_ = [i for i in collect(1:model.Corpus1.N)[.!h_map] if model.Corpus2.docs[i].len  != 0]
 	N = count_params.N
+	#N = length(all_)
+	#mb_ =  [i for i in mb if model.Corpus2.docs[i].len  != 0]
 	n = length(mb)
+	#n = length(mb_)
 	logphat = vectorize_mat(sum(Elog.(model.γ[mb]))./n)
+
 	K = prod(size(model.α))
 	#Alpha = ones(Float64, K)
 	Alpha = vectorize_mat(deepcopy(model.α))

@@ -1,4 +1,4 @@
-include("loader.jl")
+include("loader2.jl")
 Random.seed!(1234)
 function main(args)
 	s = ArgParseSettings()

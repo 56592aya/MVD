@@ -13,21 +13,21 @@ function train(model, settings, folder, data_folder, h_map,count_params, mbs, nb
 			mindex = 1
 
 			if (epoch_count % settings.EVAL_EVERY == 0) || (epoch_count == 0)
-				x1 = deepcopy(model.λ1)
+				#x1 = deepcopy(model.λ1)
 				# maximum(x1)
-				for I in CartesianIndices(x1)
-					if x1[I]-.5 > 0
-						x1[I] -= .5
-					end
-				end
-				x2 = deepcopy(model.λ2)
-				for I in CartesianIndices(x2)
-					if x2[I]-.5 > 0
-						x2[I] -= .5
-					end
-				end
-				ϕ1_est = estimate_ϕ(x1)
-				ϕ2_est = estimate_ϕ(x2)
+				#for I in CartesianIndices(x1)
+				#	if x1[I]-.5 > 0
+				#		x1[I] -= .5
+				#	end
+				#end
+				#x2 = deepcopy(model.λ2)
+				#for I in CartesianIndices(x2)
+				#	if x2[I]-.5 > 0
+				#		x2[I] -= .5
+				#	end
+				#end
+				ϕ1_est = estimate_ϕ(model.λ1)
+				ϕ2_est = estimate_ϕ(model.λ2)
 				@info "starting to calc perp"
 				p1, p2 = calc_perp(model,hos1_dict,obs1_dict,hos2_dict,obs2_dict,
 				count_params, ϕ1_est, ϕ2_est, settings)
@@ -85,6 +85,7 @@ function train(model, settings, folder, data_folder, h_map,count_params, mbs, nb
 		################################
 			  ### Global Step ###
 		################################
+		#x = [i for i in mb if model.Corpus2.docs[i].len == 0]
 		copyto!(model.old_λ1,  model.λ1)
 		optimize_λ!(model.λ1, length(mb), model.η1, model.sum_π_1_mb, count_params.N)
 		model.λ1 .= (1.0-ρ).*model.old_λ1 .+ ρ.*model.λ1
@@ -99,10 +100,11 @@ function train(model, settings, folder, data_folder, h_map,count_params, mbs, nb
 		# if epoch_count < 2
 		# 	nothing;
 		# elseif epoch_count >2  epoch_count < 10
-		# 	copyto!(model.old_α,model.α)
-		# 	update_α_newton_iterative!(model, count_params, h_map, settings)
-		# 	model.α .= (1.0-ρ).*model.old_α .+ ρ.*model.α
+		 	#copyto!(model.old_α,model.α)
+		 	#update_α_newton_iterative!(model, count_params, h_map, settings)
+		 	#model.α .= (1.0-ρ).*model.old_α .+ ρ.*model.α
 		# else
+		model.α
 			update_α_newton_mb!(model,ρ, count_params,mb, h_map, settings)
 			update_η1_newton_mb!(model,ρ, settings)
 			update_η2_newton_mb!(model,ρ, settings)
@@ -112,6 +114,8 @@ function train(model, settings, folder, data_folder, h_map,count_params, mbs, nb
 		# println(mindex == nb)
 		mindex += 1
 		#iter += 1
+		#println(model.α)
+		#model.γ[1]
 		################################
 			###For FINAL Rounds###
 		################################
@@ -215,7 +219,7 @@ function main(args)
     end
     @info "before parsing"
 
-	data_folder = parsed_args["data"]
+	data_folder = joinpath("Data",parsed_args["data"])
 	K1 = parsed_args["k1"]
 	K2 = parsed_args["k2"]
 	α_single_prior = parsed_args["alpha_prior"]
@@ -231,19 +235,21 @@ function main(args)
 	sparsity = parsed_args["sparsity"]
 	# global K1 = 5
 	# global K2 = 5
-	# global α_single_prior = .5
-	# global η1_single_prior = .1
-	# global η2_single_prior = .1
+	# global α_single_prior = .04
+	# global η1_single_prior = .02
+	# global η2_single_prior = .02
 	# global S = 256.0
-	# global κ = .6
+	# global κ = .7
 	# global every = 1
 	# global MAXITER = 80000
 	# global mb_size = 256
 	# global h = 0.005
-	# global data_folder = "10000_5_5_50_50_0.9_0.2_0.2_true_1.0"
+	# global data_folder = joinpath("Data","10000_5_5_50_50_0.25_0.25_uni_0.9_1.0")
 	# global all_ = true
 	# global sparsity = 0.0
 	folder = mkdir(joinpath(data_folder,"est_$(K1)_$(K2)_$(mb_size)_$(MAXITER)_$(h)_$(S)_$(κ)_$(every)_$(α_single_prior)_$(η1_single_prior)_$(η2_single_prior)_$(all_)_$(sparsity)"))
+	cp("funcs.jl","$(folder)/funcs_used.jl")
+	cp("main.jl","$(folder)/main_used.jl")
 	@load "$(data_folder)/corpus1" Corpus1
 	@load "$(data_folder)/corpus2" Corpus2
 	N = max(Corpus1.N, Corpus2.N)
