@@ -51,7 +51,7 @@ function train(model, settings, folder, data_folder, h_map,count_params, mbs, nb
 		ρ = get_ρ(iter,settings)
 	 	init_γs!(model, mb)
 		init_sstats!(model, settings)
-		update_local!(model, settings, mb,_C1,_C2,_terms1,_counts1,_terms2,_counts2)
+		update_local!(model, settings, mb,_terms1,_counts1,_terms2,_counts2)
 		################################
 			  ### Global Step ###
 		################################
@@ -199,6 +199,9 @@ function main(args)
 	VI_CONVERGED = false
 	perp1_list = Float64[]
 	perp2_list = Float64[]
+	# MAXITER = 90000
+	# S, κ = 256.0, .6
+	# every = 1
 	MAX_VI_ITER = MAXITER
 	MAX_ALPHA_ITER = 1000
 	MAX_GAMMA_ITER = 1000

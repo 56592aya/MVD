@@ -18,7 +18,7 @@ function optimize_γd!(model, γd,sumπ1_i,sumπ2_i)
 	@. (γd =  model._α + sumπ1_i + sumπ2_i + .5)
 end
 function optimize_γd_perp!(model, γd,sumπ1_i,sumπ2_i)
-	@. γd =  model._α + sumπ1_i + sumπ2_i
+	@. (γd =  model._α + sumπ1_i + sumπ2_i)
 end
 function optimize_λ!(lambda_::Matrix{Float64},len_mb::Int64, model_eta::Matrix{Float64}, sum_π_mb::Matrix{Float64},D::Int64)
 	copyto!(lambda_, model_eta)
@@ -40,14 +40,14 @@ function optimize_π_iw!(πtemp, expelogΘ, expelogϕ)
 end
 
 
-function update_local!(model::MVD,settings::Settings, mb::Vector{Int64},_C1::Vector{Document},_C2::Vector{Document},
-	_terms1::Vector{Vector{Int64}},_counts1::Vector{Vector{Int64}},_terms2::Vector{Vector{Int64}},_counts2::Vector{Vector{Int64}})
+function update_local!(model::MVD,settings::Settings, mb::Vector{Int64},_terms1::Vector{Vector{Int64}},
+	_counts1::Vector{Vector{Int64}},_terms2::Vector{Vector{Int64}},_counts2::Vector{Vector{Int64}})
 
 
-	init_γs!(model, mb)
-	init_sstats!(model, settings)
-	# @btime γ = copy(model._γ[mb])
-	γ = model._γ[mb]
+	# init_γs!(model, mb)
+	# init_sstats!(model, settings)
+
+	γ = deepcopy(model._γ[mb])
 	elogΘ = dir_expectation2D.(γ)
 	expelogΘ = expdot(elogΘ)
 	elogϕ1 = deepcopy(model._elogϕ1)
@@ -55,25 +55,22 @@ function update_local!(model::MVD,settings::Settings, mb::Vector{Int64},_C1::Vec
 	expelogϕ1 = exp.(elogϕ1)
 	expelogϕ2 = exp.(elogϕ2)
 	change = 0.0
-	πtemp = zeros(Float64, (model._K1, model._K2))
-	sumπ1_d = zeros(Float64, (model._K1, model._K2))
-	sumπ2_d = zeros(Float64, (model._K1, model._K2))
-	sstat = zeros(Float64, (model._K1, model._K2))
-	sstat_v1 = zeros(Float64, model._K1)
-	sstat_v2 = zeros(Float64, model._K2)
-	copyto!(model._sumπ1_mb, settings._zeroer_K1V1)
-	copyto!(model._sumπ2_mb, settings._zeroer_K2V2)
-	copyto!(πtemp, settings._zeroer_K1K2)
-	copyto!(sumπ1_d, settings._zeroer_K1K2)
-	copyto!(sumπ2_d, settings._zeroer_K1K2)
-	copyto!(sstat, settings._zeroer_K1K2)
-	copyto!(sstat_v1, zeros(Float64, model._K1))
-	copyto!(sstat_v2, zeros(Float64, model._K2))
+	πtemp = zeros(Float64, (model._K1, model._K2));copyto!(πtemp, settings._zeroer_K1K2);
+	sumπ1_d = zeros(Float64, (model._K1, model._K2));copyto!(sumπ1_d, settings._zeroer_K1K2);
+	sumπ2_d = zeros(Float64, (model._K1, model._K2));copyto!(sumπ2_d, settings._zeroer_K1K2);
+	sstat = zeros(Float64, (model._K1, model._K2));copyto!(sstat, settings._zeroer_K1K2);
+	sstat_v1 = zeros(Float64, model._K1);copyto!(sstat_v1, zeros(Float64, model._K1));
+	sstat_v2 = zeros(Float64, model._K2);copyto!(sstat_v2, zeros(Float64, model._K2));
+
+	# copyto!(model._sumπ1_mb, settings._zeroer_K1V1)
+	# copyto!(model._sumπ2_mb, settings._zeroer_K2V2)
+
+
 	for d in 1:length(mb)
 
 		i = mb[d]
-		doc1 = _C1[i]
-		doc2 = _C2[i]
+		# doc1 = _C1[i]
+		# doc2 = _C2[i]
 		ids1 = _terms1[i]
 		cts1 = _counts1[i]
 		ids2 = _terms2[i]
@@ -83,11 +80,12 @@ function update_local!(model::MVD,settings::Settings, mb::Vector{Int64},_C1::Vec
 		expelogΘd = expelogΘ[d]
 
 		for _ in 1:settings._MAX_GAMMA_ITER
+
 			γ_old = deepcopy(γd)
 			copyto!(sumπ1_d,settings._zeroer_K1K2)
 			copyto!(sstat,settings._zeroer_K1K2)
-
 			for (w,v) in enumerate(ids1)
+				copyto!(πtemp, settings._zeroer_K1K2);
 				optimize_π_iw!(πtemp, expelogΘd, expelogϕ1[:,v])
 				sstat = cts1[w] .* πtemp
 				@. (sumπ1_d += sstat)
@@ -97,6 +95,7 @@ function update_local!(model::MVD,settings::Settings, mb::Vector{Int64},_C1::Vec
 			copyto!(sumπ2_d,settings._zeroer_K1K2)
 			copyto!(sstat,settings._zeroer_K1K2)
 			for (w,v) in enumerate(ids2)
+				copyto!(πtemp, settings._zeroer_K1K2);
 				optimize_π_iw!(πtemp, expelogΘd, collect(expelogϕ2[:,v]'))
 				sstat = cts2[w] .* πtemp
 				@. (sumπ2_d += sstat)
@@ -113,9 +112,9 @@ function update_local!(model::MVD,settings::Settings, mb::Vector{Int64},_C1::Vec
 		end
 		#d has converged
 		#check whether this is necessary
-		γ[d] .= γd
-		elogΘ[d] .= elogΘd
-		expelogΘ[d] .= expelogΘd
+		#γ[d] .= γd
+		#elogΘ[d] .= elogΘd
+		#expelogΘ[d] .= expelogΘd
 
 		# @btime sstat_dw = [(expelogΘd .* expelogϕ1[:,v]) .+ 1e-100 for v in ids1]
 		# sstat_dw ./= sum.(sstat_dw)
@@ -124,7 +123,7 @@ function update_local!(model::MVD,settings::Settings, mb::Vector{Int64},_C1::Vec
 		copyto!(sstat,settings._zeroer_K1K2)
 		copyto!(sstat_v1, zeros(Float64, model._K1))
 		for (w,v) in enumerate(ids1)
-
+			copyto!(πtemp, settings._zeroer_K1K2);
 			optimize_π_iw!(πtemp, expelogΘd, expelogϕ1[:,v])
 			sstat = cts1[w] .* πtemp
 			@. (sumπ1_d += sstat)
@@ -138,6 +137,7 @@ function update_local!(model::MVD,settings::Settings, mb::Vector{Int64},_C1::Vec
 		copyto!(sstat_v2, zeros(Float64, model._K1))
 
 		for (w,v) in enumerate(ids2)
+			copyto!(πtemp, settings._zeroer_K1K2);
 			optimize_π_iw!(πtemp, expelogΘd, collect(expelogϕ2[:,v]'))
 			sstat = cts2[w] .* πtemp
 			@. (sumπ2_d += sstat)
@@ -149,9 +149,9 @@ function update_local!(model::MVD,settings::Settings, mb::Vector{Int64},_C1::Vec
 		optimize_γd!(model, γd,sumπ1_d,sumπ2_d)
 		elogΘd .= dir_expectation2D(γd)
 		expelogΘd .= exp.(elogΘd)
-		γ[d] .= γd
-		elogΘ[d] .= elogΘd
-		expelogΘ[d] .= expelogΘd
+		#γ[d] .= γd
+		#elogΘ[d] .= elogΘd
+		#expelogΘ[d] .= expelogΘd
 
 		# sstat_dw = [optimize_π_iw!(πtemp,expelogΘd,expelogϕ1[:,v]) for v in ids1]
 		# sstat_w = hcat(sum.(sstat_dw .* cts1, dims = 2)...)
@@ -160,9 +160,10 @@ function update_local!(model::MVD,settings::Settings, mb::Vector{Int64},_C1::Vec
 		# sstat_dw = [optimize_π_iw!(πtemp,expelogΘd,collect(expelogϕ2[:,v]')) for v in ids2]
 		# sstat_w = collect(vcat(sum.(sstat_dw .* cts2, dims = 1)...)')
 		# model._sumπ2_mb[:,ids2] .+= sstat_w
+		copyto!(model._γ[i],γd)
 	end
 	#check if needed
-	copyto!(model._γ[mb],γ)
+	# copyto!(model._γ[mb],γ)
 end
 
 function update_global!(model::MVD, ρ::Float64, _D1::Int64, _D2::Int64, mb,len_mb2)
@@ -181,7 +182,7 @@ function calc_Θ_bar_d(obs1_dict::Dict{Int64,Array{Int64,1}}, obs2_dict::Dict{In
 	doc2 = obs2_dict[d]
 	corp1 = model._corpus1._docs[d]
 	corp2 = model._corpus2._docs[d]
-	γd = model._γ[d]
+	γd = deepcopy(model._γ[d])
 	γd .= 1.0
 	init_sstats!(model, settings)
 	elogϕ1 = deepcopy(model._elogϕ1)
@@ -191,20 +192,27 @@ function calc_Θ_bar_d(obs1_dict::Dict{Int64,Array{Int64,1}}, obs2_dict::Dict{In
 	elogΘd = dir_expectation2D(γd)
 	expelogΘd = exp.(elogΘd)
 	change = 0.0
-	πtemp = deepcopy(settings._zeroer_K1K2)
+	πtemp = zeros(Float64, (model._K1, model._K2));copyto!(πtemp, settings._zeroer_K1K2);
+	sumπ1_d = zeros(Float64, (model._K1, model._K2));copyto!(sumπ1_d, settings._zeroer_K1K2);
+	sumπ2_d = zeros(Float64, (model._K1, model._K2));copyto!(sumπ2_d, settings._zeroer_K1K2);
+	sstat = zeros(Float64, (model._K1, model._K2));copyto!(sstat, settings._zeroer_K1K2);
 	#############
 	for _ in 1:settings._MAX_GAMMA_ITER
-		γ_old = copy(γd)
-		sumπ1_d = deepcopy(settings._zeroer_K1K2)
+		γ_old = deepcopy(γd)
+		copyto!(sumπ1_d,settings._zeroer_K1K2)
+		copyto!(sstat,settings._zeroer_K1K2)
 		obs_words_corp1inds = [find_all(d,corp1._terms)[1] for d in doc1]
 		for (w,v) in enumerate(corp1._terms[obs_words_corp1inds])
+			copyto!(πtemp, settings._zeroer_K1K2);
 			optimize_π_iw!(πtemp, expelogΘd, expelogϕ1[:,v])
 			sstat = corp1._counts[w] .* πtemp
 			@. (sumπ1_d += sstat)
 		end
-		sumπ2_d = deepcopy(settings._zeroer_K1K2)
+		copyto!(sumπ2_d,settings._zeroer_K1K2)
+		copyto!(sstat,settings._zeroer_K1K2)
 		obs_words_corp2inds = [find_all(d,corp2._terms)[1] for d in doc2]
 		for (w,v) in enumerate(corp2._terms[obs_words_corp2inds])
+			copyto!(πtemp, settings._zeroer_K1K2);
 			optimize_π_iw!(πtemp, expelogΘd, collect(expelogϕ2[:,v]'))
 			sstat = corp2._counts[w] .* πtemp
 			@. (sumπ2_d += sstat)
@@ -352,6 +360,7 @@ function update_α_newton_mb!(model::MVD,ρ, _D1::Int64,mb::Vector{Int64}, h_map
 	z = D*dΨ(sum(Alpha))
 	c = sumgh/(1.0/z + sum1h)
 	step_ = ρ .* (ga .- c)./Ha
+
 	if all(Alpha .> step_)
 		Alpha_new = Alpha .- step_
 		copyto!(model._α, matricize_vec(Alpha_new, model._K1, model._K2))
@@ -414,4 +423,39 @@ function update_η2_newton_mb!(model::MVD,ρ,  settings::Settings)
 		eta2_new = eta2 .- step_
 		copyto!(model._η2, collect(repeat(eta2_new, inner=(1,D))'))
 	end
+end
+
+
+
+
+
+
+function update_α_newton_mb2!(model::MVD,_D1::Int64, h_map::Vector{Bool}, settings::Settings)
+	D = count_params._D1
+	@assert D == sum(.!h_map)
+	logphat = vectorize_mat(sum(dir_expectation2D.(model._γ[.!h_map]))./D)
+	K = prod(size(model._α))
+	Alpha = vectorize_mat(deepcopy(model._α))
+	Alpha_new = zeros(Float64,K)
+	alphaGrad = zeros(Float64, K)
+	alphaInvHessDiag = zeros(Float64, K)
+	nu = K
+	for _ in 1:settings._MAX_ALPHA_ITER
+		rho = 1.0
+		alphaGrad .= nu./Alpha .+ D .* (Ψ(sum(Alpha)) .- Ψ.(Alpha) .+ logphat)
+		alphaInvHessDiag = -1.0 ./ (D .* dΨ.(Alpha) + (nu ./ Alpha.^2))
+		step = (alphaGrad .- dot(alphaGrad, alphaInvHessDiag) / (1.0 / (D * dΨ(sum(Alpha))) + sum(alphaInvHessDiag))) .* alphaInvHessDiag
+		while minimum(Alpha - rho * step) < 0
+			rho *= 0.5
+		end
+		Alpha  -= rho * step
+
+		if (norm(alphaGrad) < settings._ALPHA_THRESHOLD) && (nu/K < settings._ALPHA_THRESHOLD)
+			break
+		end
+		nu *= 0.5
+
+	end
+	copyto!(model._α, matricize_vec(Alpha, model._K1, model._K2))
+
 end
