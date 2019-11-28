@@ -139,7 +139,7 @@ mutable struct MVD <: AbstractModel
 		# model._sstat1_mb = zeros(Float64, K1)
 		# model._sstat2_mb = zeros(Float64, K2)
 		model._sumπ1_mb = zeros(Float64, (K1,model._corpus1._V))
-		model._sumπ2_mb = zeros(Float64, (K1,model._corpus2._V))
+		model._sumπ2_mb = zeros(Float64, (K2,model._corpus2._V))
 		# model._sumπ1_i =  zeros(Float64, (K1, K2))
 		# model._sumπ2_i =  zeros(Float64, (K1, K2))
 		return model
@@ -193,43 +193,24 @@ function expdot(X::AbstractVector{Matrix{Float64}})
 	[exp.(x) for x in X]
 end
 function Ψ(x::T) where T<: Real
-    ψ_ = 0.0
-    if x < 7.0
-        # shift using recurrence formula
-        n = 7 - floor(Int,x)
-        for ν = 1:n-1
-            ψ_ -= 1.0/(x + ν)
-        end
-        ψ_ -= 1.0/x
-        x += n
-    end
-    t = 1.0/x
-    ψ_ += log(x) - 0.5*t
-    t *= t # 1/z^2
-    # the coefficients here are Float64(bernoulli[2:9] .// (2*(1:8)))
-    ψ_ -= t * @evalpoly(t,0.08333333333333333,-0.008333333333333333,0.003968253968253968,-0.004166666666666667,0.007575757575757576,-0.021092796092796094,0.08333333333333333,-0.4432598039215686)
+	x=x+6.0
+	p=1.0/abs2(x)
+	p= (((0.004166666666667*p-0.003968253986254)*p+0.008333333333333)*p-0.083333333333333)*p
+	p= p+log(x)-0.5/x-1.0/(x-1.0)-1.0/(x-2.0)-1.0/(x-3.0)-1.0/(x-4.0)-1.0/(x-5.0)-1.0/(x-6.0)
+	return p
 end
 
 
 function dΨ(x::T) where T <: Real
-    # if x <= 0 # reflection formula
-    #     return (π * csc(π*x))^2 - dΨ(1 - x)
-    # end
-    ψ_ = 0.0
-    if x < 8.0
-        # shift using recurrence formula
-        n = 8 - floor(Int,x)
-        ψ_ += inv(x)^2.0
-        for ν = 1:n-1
-            ψ_ += inv(x + ν)^2.0
-        end
-        x += n
-    end
-    t = inv(x)
-    w = t * t # 1/z^2
-    ψ_ += t + 0.5*w
-    # the coefficients here are Float64(bernoulli[2:9])
-    ψ_ += t*w * @evalpoly(w,0.16666666666666666,-0.03333333333333333,0.023809523809523808,-0.03333333333333333,0.07575757575757576,-0.2531135531135531,1.1666666666666667,-7.092156862745098)
+	x=x+6.0;
+    p=1.0/(x*x);
+    p=(((((0.075757575757576*p-0.033333333333333)*p+0.0238095238095238)
+         *p-0.033333333333333)*p+0.166666666666667)*p+1)/x+0.5*p;
+    for i in 1:6
+        x=x-1.0;
+        p=1.0/(x*x)+p;
+	end
+    return(p)
 end
 
 
@@ -401,11 +382,12 @@ function figure_sparsity!(model::MVD, sparsity::Float64, all_::Bool, folder::Str
 	@save "$(folder)/corpus2_sparse" corp2_sparse
 end
 
-function epoch_batches(N::Int64, mb_size::Int64, h_map::Vector{Bool})
-	N_ = N - sum(h_map)
+function epoch_batches(_train_ids::Vector{Int64}, mb_size::Int64, h_map::Vector{Bool})
+	N_ = length(_train_ids)
 	div_ = div(N_, mb_size)
 	nb = (div_ * mb_size - N_) < 0 ? div_ + 1 : div_
-	y = shuffle(collect(1:N)[.!h_map])
+	# y = shuffle(collect(1:N)[.!h_map])
+	y = shuffle(_train_ids)
 	x = [Int64[] for _ in 1:nb]
 	for n in 1:nb
 		while length(x[n]) < mb_size && !isempty(y)

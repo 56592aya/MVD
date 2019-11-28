@@ -2,13 +2,16 @@ include("loader2.jl")
 Random.seed!(1234)
 
 function train(model, settings, folder, data_folder, h_map,count_params, mbs, nb, mb_size,perp1_list,perp2_list,VI_CONVERGED,
-	hos1_dict,obs1_dict,hos2_dict,obs2_dict, mindex, epoch_count)
+	hos1_dict,obs1_dict,hos2_dict,obs2_dict, mindex, epoch_count,_C1,_C2,_V1,_V2,_D,_D1,_D2,_K1,_K2,
+	_terms1,_terms2,_counts1,_counts2,_lengths1,_lengths2,_train_ids)
+
+
 	@info "VI Started"
+
 	for iter in 1:settings._MAX_VI_ITER
 		# iter = 1
-		# global model, mindex, nb, mbs, count_params,mb_size, perp1_list, perp2_list,epoch_count,settings, VI_CONVERGED, h_map,hos1_dict,obs1_dict,hos2_dict,obs2_dict
 		if mindex == (nb+1) || iter == 1
-			mbs, nb = epoch_batches(model._corpus1._D, mb_size, h_map)
+			mbs, nb = epoch_batches(_train_ids, mb_size, h_map)
 			mindex = 1
 			if (epoch_count % settings._EVAL_EVERY == 0) || (epoch_count == 0)
 				ϕ1_est = estimate_ϕ(model._λ1)
@@ -43,19 +46,20 @@ function train(model, settings, folder, data_folder, h_map,count_params, mbs, nb
 			 ### Local Step ###
 		################################
 		mb = mbs[mindex]
-		len_mb2 = length([d for d in mb if model._corpus2._docs[d]._length != 0]) ##func this
+		len_mb2 = sum([_lengths2[d] != 0  for d in mb]) ##func this
+
 		ρ = get_ρ(iter,settings)
-		init_γs!(model, mb)
+	 	init_γs!(model, mb)
 		init_sstats!(model, settings)
-		@btime update_local!(model, settings, mb)
+		update_local!(model, settings, mb,_C1,_C2,_terms1,_counts1,_terms2,_counts2)
 		################################
 			  ### Global Step ###
 		################################
-		update_global!(model, ρ, count_params, mb,len_mb2)
+		update_global!(model, ρ, _D1,_D2, mb,len_mb2)
 		################################
 			 ### Hparam Learning ###
 		################################
-		update_α_newton_mb!(model,ρ, count_params,mb, h_map, settings)
+		update_α_newton_mb!(model,ρ, _D1,mb, h_map, settings)
 		update_η1_newton_mb!(model,ρ, settings)
 		update_η2_newton_mb!(model,ρ, settings)
 		################################
@@ -139,14 +143,12 @@ function main(args)
 			default = .01
     end
     # # #
-
     parsed_args = ArgParse.parse_args(args,s) ##result is a Dict{String, Any}
     @info "Parsed args: "
     for (k,v) in parsed_args
         @info "  $k  =>  $(repr(v))"
     end
     @info "before parsing"
-
 	data_folder = joinpath("Data",parsed_args["data"])
 	K1 = parsed_args["k1"]
 	K2 = parsed_args["k2"]
@@ -186,13 +188,12 @@ function main(args)
 	figure_sparsity!(model,sparsity,all_, folder)
 	h_map = setup_hmap(model, h,D)
 	@save "$(folder)/h_map" h_map
-	mbs, nb = epoch_batches(D, mb_size, h_map)
+	mbs, nb = epoch_batches(collect(1:D)[.!h_map], mb_size, h_map)
 	mindex, epoch_count = 1,0
 	hos1_dict,obs1_dict,hos2_dict,obs2_dict =split_ho_obs(model, h_map)
 	D2 = sum([1 for i in collect(1:model._corpus1._D)[.!h_map] if model._corpus2._docs[i]._length != 0])
 	count_params = TrainCounts(model._corpus1._D-sum(h_map),D2, model._K1, model._K2)
 
-	# update_ElogΘ!(model.Elog_Θ, model.γ)
 	dir_expectationByRow!(model._elogϕ1, model._λ1)
 	dir_expectationByRow!(model._elogϕ2, model._λ2)
 	VI_CONVERGED = false
@@ -212,9 +213,25 @@ function main(args)
 	MAX_VI_ITER,MAX_ALPHA_ITER,MAX_GAMMA_ITER,MAX_ALPHA_DECAY,
 	ALPHA_DECAY_FACTOR,ALPHA_THRESHOLD,GAMMA_THRESHOLD,VI_THRESHOLD,
 	EVAL_EVERY, LR_OFFSET, LR_KAPPA)
+	_C1 = model._corpus1._docs
+	_C2 = model._corpus2._docs
+	_V1 = model._corpus1._V
+	_V2 = model._corpus2._V
+	_D = model._corpus1._D
+	_D1 = count_params._D1
+	_D2 = count_params._D2
+	_K1 = count_params._K1
+	_K2 = count_params._K2
+	_terms1 = [_C1[i]._terms for i in 1:model._corpus1._D]
+	_terms2 = [_C2[i]._terms for i in 1:model._corpus2._D]
+	_counts1 = [_C1[i]._counts for i in 1:model._corpus1._D]
+	_counts2 = [_C2[i]._counts for i in 1:model._corpus2._D]
+	_lengths1 = [_C1[i]._length for i in 1:model._corpus1._D]
+	_lengths2 = [_C2[i]._length for i in 1:model._corpus2._D]
+	_train_ids = collect(1:_D)[.!h_map]
 
 	train(model, settings, folder, data_folder, h_map,count_params, mbs, nb, mb_size,perp1_list,perp2_list,VI_CONVERGED,
-		hos1_dict,obs1_dict,hos2_dict,obs2_dict, mindex, epoch_count)
+		hos1_dict,obs1_dict,hos2_dict,obs2_dict, mindex, epoch_count,_C1,_C2,_V1,_V2,_D,_D1,_D2,_K1,_K2,_terms1,_terms2,_counts1,_counts2,_lengths1,_lengths2,_train_ids)
 end
 
 main(ARGS)
