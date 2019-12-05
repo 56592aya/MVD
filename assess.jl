@@ -3,9 +3,9 @@ function read_model(eee)
 	return model
 end
 function do_ϕs(model)
-	ϕ1_est = estimate_ϕ(model.λ1);
-	ϕ2_est = estimate_ϕ(model.λ2);
-	theta_est = estimate_Θs(model.γ);
+	ϕ1_est = mean_dir_by_row(model._λ1);
+	ϕ2_est = mean_dir_by_row(model._λ2);
+	theta_est = mean_dir_dot(model._γ);
 	ϕ1_truth = deepcopy(Truth_Params.ϕ1);
 	ϕ2_truth = deepcopy(Truth_Params.ϕ2);
 	theta_truth = deepcopy(Truth_Params.Θ);
@@ -156,9 +156,9 @@ function do_plots(model,theta_est, ϕ1_est, ϕ2_est, ϕ1_truth, ϕ2_truth, theta
 			Plots.plot(plts..., layout =(1, length(inds2)), legend=false)
 			savefig("pics/thetas2_ho.png")
 		end
-		absent_map = [i for i in 1:length(model.Corpus1.docs) if model.Corpus2.docs[i].len  == 0]
+		absent_map = [i for i in 1:length(model._corpus1._docs) if model._corpus2._docs[i]._length  == 0]
 		if !isempty(absent_map)
-			present_map = [i for i in 1:length(model.Corpus1.docs) if model.Corpus2.docs[i].len != 0]
+			present_map = [i for i in 1:length(model._corpus1._docs) if model._corpus2._docs[i]._length != 0]
 			plts = [];
 			for k in 1:length(inds2)
 				p = scatter(theta_truth_2[present_map,k], theta_est_2[present_map,k], grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
@@ -173,32 +173,6 @@ function do_plots(model,theta_est, ϕ1_est, ϕ2_est, ϕ1_truth, ϕ2_truth, theta
 			end
 
 
-			# gamma_absent = deepcopy(model.γ)
-			# theta_est_absent = deepcopy(theta_est)
-			# for i in absent_map
-			# 	gamma_absent[i] = all(model.α .- .5 .> 0.0) ? gamma_absent[i] .* (model.α .- .5) : gamma_absent[i] .* (model.α .- floor(minimum(model.α),digits=2))
-			# 	theta_est_absent[i] = gamma_absent[i] ./ sum(gamma_absent[i])
-			# end
-			#
-			# theta_est_absent_2 = zeros(Float64, (length(theta_truth), size(ϕ2_truth,1)));
-			#
-			# for i in absent_map
-			# 	for j in 1:size(ϕ2_truth,1)
-			# 		theta_est_absent_2[i,j] = sum(theta_est_absent[i][:,inds2[j]])
-			# 	end
-			# end
-			# plts = [];
-			# for k in 1:length(inds2)
-			# 	p = scatter(theta_truth_2[absent_map,k], theta_est_absent_2[absent_map,k], grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
-			# 	plts = vcat(plts, p)
-			# end
-			# if length(inds2) % 2 == 0
-			# 	Plots.plot(plts..., layout =(2, div(length(inds2),2)), legend=false)
-			# 	savefig("pics/thetas2_absent_corrected.png")
-			# else
-			# 	Plots.plot(plts..., layout =(1, length(inds2)), legend=false)
-			# 	savefig("pics/thetas2_absent_corrected.png")
-			# end
 			plts = [];
 			for k in 1:length(inds2)
 				p = scatter(theta_truth_2[absent_map,k], theta_est_2[absent_map,k], grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
@@ -212,7 +186,7 @@ function do_plots(model,theta_est, ϕ1_est, ϕ2_est, ϕ1_truth, ϕ2_truth, theta
 				savefig("pics/thetas2_absent.png")
 			end
 		end
-		p1 = Plots.heatmap(model.α[inds1, inds2])
+		p1 = Plots.heatmap(model._α[inds1, inds2])
 		savefig("pics/model_Alpha.png")
 		p2 = Plots.heatmap(Truth_Params.Α)
 		savefig("pics/true_Alpha.png")

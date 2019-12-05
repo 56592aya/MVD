@@ -1,225 +1,266 @@
+"""
+    init_γ!(model, mb)
 
-function update_ElogΘ!(Elog_, γ_)
-	Elog_ .= Elog.(γ_)
-end
-function update_ElogΘ_i!(model::MVD, i::Int64)
-	model.Elog_Θ[i] .= Elog(model.γ[i])
-end
-function update_Elogϕ!(model::MVD, mode::Int64)
-	if mode == 1
-		for (k,row) in enumerate(eachrow(model.λ1))
-			model.Elog_ϕ1[k,:].= Elog(row)
-		end
-	else
-		for (k,row) in enumerate(eachrow(model.λ2))
-			model.Elog_ϕ2[k,:] .=  Elog(row)
-		end
-	end
-end
-
-function estimate_Θs(gamma::MatrixList{Float64})
-	theta_est = deepcopy(gamma)
-	for i in 1:length(theta_est)
-		s = sum(gamma[i])
-		theta_est[i] ./= s
-	end
-	return theta_est
-end
-function estimate_ϕ(lambda_::Matrix{Float64})
-	res = zeros(Float64, size(lambda_))
-	for k in 1:size(lambda_, 1)
-		res[k,:] .= mean(Dirichlet(lambda_[k,:]))
-	end
-	return res
-end
+initialize `γ` for a minibatch `mb`
+"""
 function init_γs!(model::MVD, mb::Vector{Int64})
 	for i in mb
-
 		# model.γ[i] .= 1.0
-		model.γ[i] = rand(Gamma(100.0, 0.01), (model.K1,model.K2))
+		model._γ[i] = rand(Gamma(100.0, 0.01), (model._K1,model._K2))
 	end
 end
-function init_sstats!(model::MVD, settings::Settings)
-	copyto!(model.sum_π_1_mb, settings.zeroer_mb_1)
-	copyto!(model.sum_π_2_mb, settings.zeroer_mb_2)
-	copyto!(model.sum_π_1_i,  settings.zeroer_i)
-	copyto!(model.sum_π_2_i, settings.zeroer_i)
-end
-function optimize_γi!(model::MVD, i::Int64)
-	@inbounds for I in eachindex(model.γ[i])
-		model.γ[i][I] = model.α[I] + .5 + model.sum_π_1_i[I] + model.sum_π_2_i[I]
-	end
-end
-function optimize_γi_perp!(model::MVD, i::Int64)
-	@inbounds for I in eachindex(model.γ[i])
-		model.γ[i][I] = model.α[I]  + model.sum_π_1_i[I] + model.sum_π_2_i[I]
-	end
-end
-function optimize_λ!(lambda_::Matrix{Float64},len_mb::Int64, model_eta::Matrix{Float64}, sum_π_mb::Matrix{Float64},N::Int64)
-	copyto!(lambda_, model_eta)
-	#@.(lambda_ +=  (N/len_mb) * sum_π_mb)
-	@.(lambda_ += 0.5 + (N/len_mb) * sum_π_mb)
-end
-function optimize_π_iw!(model::MVD, i::Int64, mode::Int64, v::Int64)
-	if mode == 1
-	    @. model.π_temp = exp(model.Elog_Θ[i] + model.Elog_ϕ1[:,v])+1e-100
-		model.π_temp ./= sum(model.π_temp)
-	else
-		@. model.π_temp = exp(model.Elog_Θ[i] + model.Elog_ϕ2[:,v]') + 1e-100
-		model.π_temp ./= sum(model.π_temp)
-	end
-end
-
-# function optimize_π_iw!(model::MVD, i::Int64, mode::Int64, v::Int64)
-# 	if mode == 1
-# 	    @. model.π_temp = (expElog_Θ[i] * expElog_ϕ1[:,v])+1e-100
-# 		model.π_temp ./= sum(model.π_temp)
-# 	else
-# 		@. model.π_temp = (expElog_Θ[i] * expElog_ϕ2[:,v]') + 1e-100
-# 		model.π_temp ./= sum(model.π_temp)
-# 	end
+# """
+#     init_sstats!(model, settings)
+#
+# initialize statistics before the local update of variational parameters
+# """
+# function init_sstats!(model::MVD, settings::Settings, mb::Vector{Int64})
+# 	copyto!(model._sumπ1_mb, settings._zeroer_K1V1)
+# 	copyto!(model._sumπ2_mb, settings._zeroer_K2V2)
+# 	πtemp = zeros(Float64, (model._K1, model._K2));
+# 	sumπ1_d = zeros(Float64, (model._K1, model._K2));
+# 	sumπ2_d = zeros(Float64, (model._K1, model._K2));
+# 	sstat = zeros(Float64, (model._K1, model._K2));
+# 	sstat_v1 = zeros(Float64, model._K1);
+# 	sstat_v2 = zeros(Float64, model._K2);
+# 	γ = deepcopy(model._γ[mb])
+# 	γd = zeros(Float64, (model._K1, model._K2))
+# 	γ_old = zeros(Float64, (model._K1, model._K2))
+# 	elogΘd =zeros(Float64, (model._K1, model._K2));
+# 	expelogΘd = zeros(Float64, (model._K1, model._K2));
+# 	return πtemp,sumπ1_d,sumπ2_d,sstat,sstat_v1,sstat_v2,γ,γd,γ_old,elogΘd,expelogΘd
 # end
-#back to copy
-function update_local!(model::MVD, i::Int64,settings::Settings,doc1::Document,doc2::Document,gamma_flag::Bool)
-
-	counter  = 0::Int64
-	gamma_change = 500.0::Float64
-	while !( gamma_flag) && counter <= settings.MAX_GAMMA_ITER
-		# global counter, MAXLOOP,old_change, gamma_change
-		model.sum_π_1_i .= settings.zeroer_i
-		model.sum_π_2_i .= settings.zeroer_i
-		for (w,val) in enumerate(doc1.terms)
-			optimize_π_iw!(model, i,1,val)
-			@. model.sstat_i = doc1.counts[w] * model.π_temp
-			@.(model.sum_π_1_i += model.sstat_i)
-		end
-
-		for (w,val) in enumerate(doc2.terms)
-			optimize_π_iw!(model, i,2,val)
-			@. model.sstat_i = doc2.counts[w] * model.π_temp
-			@.(model.sum_π_2_i += model.sstat_i)
-		end
-		if doc2.len > 0
-			optimize_γi!(model, i)
-			#optimize_γi!(model, i)
-		else ## or possibly if K >5
-			optimize_γi_perp!(model, i)
-		end
-		update_ElogΘ_i!(model,i)
-		gamma_change = mean_change(model.γ[i], model.old_γ)
-		# println(mean(abs.((model.γ[i] .- model.old_γ)/model.old_γ)))
-		#println(gamma_change)
-		#model.old_γ .= model.γ[i]#remove
-		#counter+=1
-		if (gamma_change < settings.GAMMA_THRESHOLD) || counter == settings.MAX_GAMMA_ITER
-			gamma_flag = true
-			model.sum_π_1_i .= settings.zeroer_i
-			model.sum_π_2_i .= settings.zeroer_i
-
-			for (w,val) in enumerate(doc1.terms)
-				optimize_π_iw!(model, i,1,val)
-				@. (model.sstat_i = doc1.counts[w] * model.π_temp)
-				@.(model.sum_π_1_i += model.sstat_i)
-				model.sstat_mb_1 .= sum(model.sstat_i, dims = 2)[:,1]
-				@.(model.sum_π_1_mb[:,val] += model.sstat_mb_1)
-				# model.alpha_sstat[i] .+= model.sstat_i
-			end
-
-			for (w,val) in enumerate(doc2.terms)
-				optimize_π_iw!(model, i,2,val)
-				@.(model.sstat_i = doc2.counts[w] * model.π_temp)
-				@.(model.sum_π_2_i += model.sstat_i)
-				model.sstat_mb_2 .= sum(model.sstat_i , dims = 1)[1,:]
-				@.(model.sum_π_2_mb[:,val] += model.sstat_mb_2)
-				# model.alpha_sstat[i] .+= model.sstat_i
-			end
-			if doc2.len > 0
-				optimize_γi!(model, i)
-			else
-				#optimize_γi_perp!(model, i)
-				optimize_γi_perp!(model, i)
-			end
-			update_ElogΘ_i!(model,i)
-		end
-		model.old_γ .= model.γ[i]
-
-		if counter == settings.MAX_GAMMA_ITER
-			gamma_flag = true
-		end
-		counter += 1
-
-	end
-	# println(counter)
+function init_sstats!(model::MVD, settings::Settings, mb::Vector{Int64})
+	copyto!(model._sumπ1_mb, settings._zeroer_K1V1)
+	copyto!(model._sumπ2_mb, settings._zeroer_K2V2)
+	# πtemp = zeros(Float64, (model._K1, model._K2));
+	sumπ1_d = zeros(Float64, model._K1* model._K2);
+	sumπ2_d = zeros(Float64, model._K1* model._K2);
+	γ = deepcopy(model._γ[mb])
+	γd = zeros(Float64, model._K1* model._K2)
+	γ_old = zeros(Float64, model._K1*model._K2)
+	elogΘd =zeros(Float64, model._K1*model._K2);
+	expelogΘd = zeros(Float64, model._K1* model._K2);
+	return sumπ1_d,sumπ2_d,γ,γd,γ_old,elogΘd,expelogΘd
 end
+"""
+    optimize_γd!(model, γ,sumπ1_d,sumπ2_d)
 
-function calc_Θ_bar_i(obs1_dict::Dict{Int64,Array{Int64,1}}, obs2_dict::Dict{Int64,Array{Int64,1}},
-	 i::Int64, model::MVD, count_params::CountParams,settings::Settings)
-	update_ElogΘ_i!(model, i)
-	doc1 = obs1_dict[i]
-	doc2 = obs2_dict[i]
-	corp1 = model.Corpus1.docs[i]
-	corp2 = model.Corpus2.docs[i]
-	copyto!(model.sum_π_1_i, settings.zeroer_i)
-	copyto!(model.sum_π_2_i, settings.zeroer_i)
-	copyto!(model.old_γ ,  model.γ[i])
+optimize the variational parameter of γ for a document in the training
+"""
+function optimize_γd!(model, γd,sumπ1_d,sumπ2_d)
+	@. (γd =  model._α + sumπ1_d + sumπ2_d)
+end
+"""
+    optimize_γd_perp!(model, γ,sumπ1_d,sumπ2_d)
 
-	counter  = 0
-	gamma_change = 500.0
-	gamma_flag = false
-	model.γ[i] .= 1.0
-	#############
-	while !( gamma_flag) && counter <= settings.MAX_GAMMA_ITER
-		copyto!(model.sum_π_1_i, settings.zeroer_i)
-		obs_words_corp1inds = [find_all(d,corp1.terms)[1] for d in doc1]
-		for (key,val) in enumerate(corp1.terms[obs_words_corp1inds])
+optimize the variational parameter of `γ` for a document in heldout
+"""
+function optimize_γd_perp!(model, γd,sumπ1_i,sumπ2_i)
+	@. (γd =  model._α + sumπ1_i + sumπ2_i)
+end
+"""
+    optimize_λ!(λ, mbsize,η,sum,D)
 
-			optimize_π_iw!(model, i,1,val)
-			@.(model.sstat_i = corp1.counts[key] * model.π_temp)
-			@.(model.sum_π_1_i += model.sstat_i)
+optimize the global variational parameter of `λ` given the current batch documents statistics `sum`
+"""
+function optimize_λ!(lambda_::Matrix{Float64},_d::Int64, model_eta::Matrix{Float64}, sum_π_mb::Matrix{Float64},_D::Int64)
+	copyto!(lambda_, model_eta)
+	@.(lambda_ +=  (_D/_d) * sum_π_mb)
+end
+"""
+    optimize_π_iw!(π, expelogΘ,expelogϕ)
+
+optimize the variational local parameter `π_dwk`
+"""
+function optimize_π_iw!(πtemp, expelogΘ, expelogϕ)
+	@. (πtemp = dot(expelogΘ, expelogϕ) + 1e-100)
+	# println(sum(πtemp))
+	πtemp ./= sum(πtemp)
+end
+"""
+    update_local!(model,settings,mb, terms1, counts1, terms2, counts2)
+
+updating the local variational parameters `γ` and `π` for the given bacth `mb` \n
+in the train stage
+"""
+
+
+function update_local!(model::MVD,settings::Settings, mb::Vector{Int64},_terms1::Vector{Vector{Int64}},
+	_counts1::Vector{Vector{Int64}},_terms2::Vector{Vector{Int64}},_counts2::Vector{Vector{Int64}},args...)
+
+	change = 0.0
+	sumπ1_d,sumπ2_d,γ,γd,γ_old,elogΘd,expelogΘd = args
+	expelogϕ1 = exp.(model._elogϕ1)
+	expelogϕ2 = exp.(model._elogϕ2)
+	expelogϕ1d = repeat(expelogϕ1,inner = (model._K2,1))
+	expelogϕ2d = repeat(expelogϕ2,inner = (model._K1,1))
+	cs = get1DColIndices(model._K1, model._K2)
+	rs = get1DRowIndices(model._K1, model._K2)
+	for d in 1:length(mb)
+		i = mb[d]
+		ids1, cts1 = _terms1[i], _counts1[i]
+		ids2, cts2 = _terms2[i], _counts2[i]
+		γd = vectorize_mat(γ[d])
+		γd2 = vectorize_mat(γ[d]')
+
+		elogΘd1 = sum(cts2) != 0 ? dir_expectation_shifted(γd) : dir_expectation_shifted(γd) ##change second to unshifted
+		expelogΘd1 = exp.(elogΘd1)
+		elogΘd2 = sum(cts2) != 0 ? dir_expectation_shifted(γd2) : dir_expectation_shifted(γd2)
+		expelogΘd2 = exp.(elogΘd2)
+		phinorm1 = collect(expelogΘd1' * expelogϕ1d[:,ids1])[1,:] .+ 1e-100
+		phinorm2 = collect(expelogΘd2' * expelogϕ2d[:,ids2])[1,:] .+ 1e-100
+
+		for _ in 1:settings._MAX_GAMMA_ITER
+			γ_old = deepcopy(γd)
+			sumπ1_d = (expelogΘd1 .* (collect((cts1./phinorm1)' * expelogϕ1d[:,ids1]')[1,:]))[rs]
+			if sum(cts2) != 0
+				sumπ2_d = (expelogΘd2 .* (collect((cts2./phinorm2)' * expelogϕ2d[:,ids2]')[1,:]) )[cs]
+			else
+				sumπ2_d = ones(Float64, (model._K1 , model._K2)) .* 1e-100
+			end
+			mat = model._α  .+ sumπ1_d .+ sumπ2_d
+			γd = vectorize_mat(mat)
+			γd2 = vectorize_mat(mat')
+			elogΘd1 = sum(cts2) != 0 ? dir_expectation_shifted(γd) : dir_expectation_shifted(γd)##change to unshifted
+			expelogΘd1 = exp.(elogΘd1)
+			elogΘd2 = sum(cts2) != 0 ? dir_expectation_shifted(γd2) : dir_expectation_shifted(γd2)##change to unshifted
+			expelogΘd2 = exp.(elogΘd2)
+			phinorm1 = collect(expelogΘd1' * expelogϕ1d[:,ids1])[1,:] .+ 1e-100
+			phinorm2 = collect(expelogΘd2' * expelogϕ2d[:,ids2])[1,:] .+ 1e-100
+			change = mean_change(γd, γ_old)
+			# println(change)
+			if change < settings._GAMMA_THRESHOLD
+				break
+			end
 		end
-		copyto!(model.sum_π_2_i, settings.zeroer_i)
-		obs_words_corp2inds = [find_all(d,corp2.terms)[1] for d in doc2]
-		for (key,val) in enumerate(corp2.terms[obs_words_corp2inds])
-			optimize_π_iw!(model, i,2,val)
-			@.(model.sstat_i = corp2.counts[key] * model.π_temp)
-			@.(model.sum_π_2_i += model.sstat_i)
+		#d has converged
+		copyto!(model._γ[i],matricize_vec(γd, model._K1, model._K2))
+		s = expelogΘd1 * (cts1./phinorm1)'
+		for (j,id) in enumerate(ids1)
+			model._sumπ1_mb[:,id] .+= sum(s[rs,j], dims = 2)[:,1]
 		end
-		optimize_γi_perp!(model, i)
-		update_ElogΘ_i!(model, i)
-		gamma_change = mean_change(model.γ[i], model.old_γ)
-		# println(gamma_change)
-		if (gamma_change < settings.GAMMA_THRESHOLD) || counter == settings.MAX_GAMMA_ITER
-			gamma_flag = true
+		if sum(cts2) != 0
+			s = expelogΘd2 * (cts2./phinorm2)'
+
+			for (j,id) in enumerate(ids2)
+				model._sumπ2_mb[:,id] .+= sum(s[rs,j], dims = 2)[:,1]
+			end
+		else
+			model._sumπ2_mb .+= ones(Float64, size(model._sumπ2_mb)) .* 1e-100   ##Added
 		end
-		copyto!(model.old_γ,model.γ[i])
-		counter +=1
 	end
-	theta_bar = model.γ[i][:,:] ./ sum(model.γ[i])
+	model._sumπ1_mb .*= expelogϕ1
+	model._sumπ1_mb .+= 1e-100
+	model._sumπ2_mb .*= expelogϕ2
+	model._sumπ2_mb .+= 1e-100
+	print("")
+end
+"""
+    update_global!(model,ρ,D1, D2, _d1, _d2)
+
+noisy updating the global variational parameters λ after seeing bacth `mb` \n
+in the train stage using a learning rate `ρ`
+"""
+function update_global!(model::MVD, ρ::Float64, _D1::Int64, _D2::Int64, _d1::Int64,_d2::Int64)
+	copyto!(model._λ1_old,  model._λ1)
+	optimize_λ!(model._λ1, _d1, model._η1, model._sumπ1_mb, _D1)
+	model._λ1 .= (1.0-ρ).*model._λ1_old .+ ρ.*model._λ1
+	dir_expectationByRow_shifted!(model._elogϕ1,model._λ1)    # <=====  HERE
+	copyto!(model._λ2_old,model._λ2)
+	optimize_λ!(model._λ2,_d2, model._η2, model._sumπ2_mb,_D2)
+	model._λ2 .= (1.0-ρ).*model._λ2_old .+ ρ.*model._λ2
+	dir_expectationByRow_shifted!(model._elogϕ2,model._λ2)    # <=====  HERE
+end
+"""
+    get_holdout_Θd!(obs1,obs2,model, counts, d, settings)
+
+updates the `γd` for the a document in the holdout using the observed terms in the
+	test document `d` and returns mean `Θd`.\n
+"""
+function get_holdout_Θd(obs1_dict::Dict{Int64,Array{Int64,1}}, obs2_dict::Dict{Int64,Array{Int64,1}},
+	 d::Int64, model::MVD, count_params::TrainCounts,settings::Settings)
+	doc1 = obs1_dict[d]
+	doc2 = obs2_dict[d]
+	corp1 = model._corpus1._docs[d]
+	corp2 = model._corpus2._docs[d]
+	γd = deepcopy(model._γ[d])
+	γd .= 1.0
+	init_sstats!(model, settings, [d])
+	elogϕ1 = deepcopy(model._elogϕ1)
+	elogϕ2 = deepcopy(model._elogϕ2)
+	expelogϕ1 = exp.(elogϕ1)
+	expelogϕ2 = exp.(elogϕ2)
+	elogΘd = dir_expectation2D(γd)
+	expelogΘd = exp.(elogΘd)
+	change = 0.0
+	πtemp = zeros(Float64, (model._K1, model._K2));copyto!(πtemp, settings._zeroer_K1K2);
+	sumπ1_d = zeros(Float64, (model._K1, model._K2));copyto!(sumπ1_d, settings._zeroer_K1K2);
+	sumπ2_d = zeros(Float64, (model._K1, model._K2));copyto!(sumπ2_d, settings._zeroer_K1K2);
+	sstat = zeros(Float64, (model._K1, model._K2));copyto!(sstat, settings._zeroer_K1K2);
+	#############
+	for _ in 1:settings._MAX_GAMMA_ITER
+		γ_old = deepcopy(γd)
+		copyto!(sumπ1_d,settings._zeroer_K1K2)
+		copyto!(sstat,settings._zeroer_K1K2)
+		obs_words_corp1inds = [find_all(d,corp1._terms)[1] for d in doc1]
+		for (w,v) in enumerate(corp1._terms[obs_words_corp1inds])
+			copyto!(πtemp, settings._zeroer_K1K2);
+			optimize_π_iw!(πtemp, expelogΘd, expelogϕ1[:,v])
+			sstat = corp1._counts[w] .* πtemp
+			@. (sumπ1_d += sstat)
+		end
+		copyto!(sumπ2_d,settings._zeroer_K1K2)
+		copyto!(sstat,settings._zeroer_K1K2)
+		obs_words_corp2inds = [find_all(d,corp2._terms)[1] for d in doc2]
+		for (w,v) in enumerate(corp2._terms[obs_words_corp2inds])
+			copyto!(πtemp, settings._zeroer_K1K2);
+			optimize_π_iw!(πtemp, expelogΘd, collect(expelogϕ2[:,v]'))
+			sstat = corp2._counts[w] .* πtemp
+			@. (sumπ2_d += sstat)
+		end
+		optimize_γd_perp!(model, γd,sumπ1_d,sumπ2_d)
+		elogΘd .= dir_expectation2D(γd)
+		expelogΘd .= exp.(elogΘd)
+		change = mean_change(γd, γ_old)
+		if change < settings._GAMMA_THRESHOLD
+			break
+		end
+	end
+
+	copyto!(model._γ[d],γd)
+	theta_bar = model._γ[d][:,:] ./ sum(model._γ[d])
 	return theta_bar
 end
+"""
+    calc_perp(model,unobs1, obs1, unobs2, obs2, counts, ϕ1, ϕ2)
 
+calculates the perplexity per view.
+"""
 function calc_perp(model::MVD,hos1_dict::Dict{Int64,Array{Int64,1}},
 				   obs1_dict::Dict{Int64,Array{Int64,1}},hos2_dict::Dict{Int64,Array{Int64,1}},
-				   obs2_dict::Dict{Int64,Array{Int64,1}},count_params::CountParams,
+				   obs2_dict::Dict{Int64,Array{Int64,1}},count_params::TrainCounts,
 				   ϕ1_est::Matrix{Float64}, ϕ2_est::Matrix{Float64},settings::Settings)
-	corp1 = deepcopy(model.Corpus1)
-	corp2 = deepcopy(model.Corpus2)
+	corp1 = deepcopy(model._corpus1)
+	corp2 = deepcopy(model._corpus2)
 	l1 = 0.0
 	l2 = 0.0
+	validation = collect(keys(hos1_dict))
 
-	for i in collect(keys(hos1_dict))
+	for d in validation
 
-		theta_bar = calc_Θ_bar_i(obs1_dict, obs2_dict,i, model, count_params,settings)
-		for v in hos1_dict[i]
+
+		theta_bar = get_holdout_Θd(obs1_dict, obs2_dict,d, model, count_params,settings)
+		for v in hos1_dict[d]
 			tmp = 0.0
-			for k in 1:count_params.K1
+			for k in 1:count_params._K1
 				tmp += ((ϕ1_est[k,v]*sum(theta_bar, dims=2)[k,1]))
 			end
 			l1 += log(tmp)
 		end
-		for v in hos2_dict[i]
+		for v in hos2_dict[d]
 			tmp = 0.0
-			for k in 1:count_params.K2
+			for k in 1:count_params._K2
 				tmp += ((ϕ2_est[k,v]*sum(theta_bar, dims=1)[1,k]))
 			end
 			l2 += log(tmp)
@@ -231,117 +272,67 @@ function calc_perp(model::MVD,hos1_dict::Dict{Int64,Array{Int64,1}},
 
 	return exp(-l1), exp(-l2)
 end
+function evaluate_at_epoch(folder,model, h_map, settings, count_params,hos1_dict,obs1_dict,hos2_dict,obs2_dict,perp1_list,perp2_list,VI_CONVERGED, epoch_count)
 
-function update_α_newton_iterative!(model::MVD, count_params::CountParams, h_map::Vector{Bool}, settings::Settings)
-	N = count_params.N
-	logphat = vectorize_mat(sum(Elog.(model.γ[.!h_map]))./N)
-	counter = 0
-	cond = true
-	decay = 0
-	K = prod(size(model.α))
-	Alpha = ones(Float64, K)
-	#Alpha = vectorize_mat(deepcopy(model.Alpha))
-	Alpha_new = zeros(Float64,K)
-	ga = zeros(Float64,K)
-	Ha = zeros(Float64,K)
-
-	while cond
-		sumgh = 0.0
-		sum1h = 0.0
-		for k in 1:K
-			#global sumgh, sum1h
-			ga[k] = N*(digamma_(sum(Alpha))- digamma_(Alpha[k]) + logphat[k])
-			Ha[k] = -N*trigamma_(Alpha[k])
-			sumgh += ga[k]/Ha[k]
-			sum1h += 1.0/Ha[k]
+	ϕ1_est = mean_dir_by_row(model._λ1)
+	ϕ2_est = mean_dir_by_row(model._λ2)
+	@info "computing perplexity..."
+	p1, p2 = calc_perp(model,hos1_dict,obs1_dict,hos2_dict,obs2_dict,
+	count_params, ϕ1_est, ϕ2_est, settings)
+	perp1_list = vcat(perp1_list, p1)
+	@info "perp1 = $(p1)"
+	perp2_list = vcat(perp2_list, p2)
+	@info "perp2 = $(p2)"
+	@save "$(folder)/perp1_at_$(epoch_count)"  perp1_list
+	@save "$(folder)/perp2_at_$(epoch_count)"  perp2_list
+	@save "$(folder)/model_at_epoch_$(epoch_count)"  model
+	if length(perp1_list) > 2
+		if (abs(perp1_list[end]-perp1_list[end-1])/perp1_list[end] < settings._VI_THRESHOLD) &&
+			(abs(perp2_list[end]-perp2_list[end-1])/perp2_list[end] < settings._VI_THRESHOLD)
+			VI_CONVERGED  = true
 		end
-		z = N*trigamma_(sum(Alpha))
-		c = sumgh/(1.0/z + sum1h)
-		while true
-
-			singular = false
-			for k in 1:K
-				#global singular
-				step_ = (settings.ALPHA_DECAY_FACTOR^decay) * (ga[k] - c)/Ha[k]
-				if Alpha[k] <= step_
-					singular = true
-					break
-				end
-				Alpha_new[k] = Alpha[k] - step_
-			end
-
-			if singular
-				decay += 1
-				copyto!(Alpha_new,Alpha)
-				if decay > settings.MAX_ALPHA_DECAY
-					break
-				end
-			else
-				break;
-			end
-		end
-		cond = false
-		mchange_ = mean_change(Alpha_new, Alpha)
-		if mchange_ >= settings.ALPHA_THRESHOLD
-			cond =true
-		end
-		if counter > settings.MAX_ALPHA_ITER
-			cond = false
-		end
-		if decay > settings.MAX_ALPHA_DECAY
-			break;
-		end
-		counter += 1
-		copyto!(Alpha, Alpha_new)
 	end
-	copyto!(model.α, matricize_vec(Alpha, model.K1, model.K2))
-
+	return VI_CONVERGED
 end
 
-function update_α_newton_mb!(model::MVD,ρ, count_params::CountParams,mb::Vector{Int64}, h_map::Vector{Bool}, settings::Settings)
-	#all_ = [i for i in collect(1:model.Corpus1.N)[.!h_map] if model.Corpus2.docs[i].len  != 0]
-	N = count_params.N
-	#N = length(all_)
-	#mb_ =  [i for i in mb if model.Corpus2.docs[i].len  != 0]
-	n = length(mb)
-	#n = length(mb_)
-	logphat = vectorize_mat(sum(Elog.(model.γ[mb]))./n)
+"""
+    update_α_newton_mb!(model, ρ, D1, mb, h_map, settings)
+uses one step `-H⁻¹g` step towards the current value of α using the learning rate `ρ`
+"""
 
-	K = prod(size(model.α))
-	#Alpha = ones(Float64, K)
-	Alpha = vectorize_mat(deepcopy(model.α))
+function update_α_newton_mb!(model::MVD,ρ, _D1::Int64,mb::Vector{Int64}, h_map::Vector{Bool}, settings::Settings)
+	D = _D1
+	n = length(mb)
+	logphat = vectorize_mat(mean(dir_expectation2D.(model._γ[mb])))     # <=====  HERE
+
+	K = prod(size(model._α))
+	Alpha = vectorize_mat(deepcopy(model._α))
 	Alpha_new = zeros(Float64,K)
 	ga = zeros(Float64,K)
 	Ha = zeros(Float64,K)
-
-
-	sumgh = 0.0
-	sum1h = 0.0
-	for k in 1:K
-		#global sumgh, sum1h
-		ga[k] = N*(digamma_(sum(Alpha))- digamma_(Alpha[k]) + logphat[k])
-		Ha[k] = -N*trigamma_(Alpha[k])
-		sumgh += ga[k]/Ha[k]
-		sum1h += 1.0/Ha[k]
-	end
-	z = N*trigamma_(sum(Alpha))
+	ga .= D .* (logphat .- dir_expectation(Alpha)) ####
+	Ha .= -D .*dΨ.(Alpha)   ####
+	sumgh = sum(ga./Ha)
+	sum1h = sum(1.0./Ha)
+	z = D*dΨ(sum(Alpha)) ####
 	c = sumgh/(1.0/z + sum1h)
-
 	step_ = ρ .* (ga .- c)./Ha
+
 	if all(Alpha .> step_)
 		Alpha_new = Alpha .- step_
-		#copyto!(Alpha, Alpha_new)
-		copyto!(model.α, matricize_vec(Alpha_new, model.K1, model.K2))
+		copyto!(model._α, matricize_vec(Alpha_new, model._K1, model._K2))
 	end
-	# model.Alpha ./= sum(model.Alpha)
 end
-
+"""
+    update_η1_newton_mb!(model, ρ, settings)
+uses one step `-H⁻¹g` step towards the current value of η1 using the learning rate `ρ`
+"""
 function update_η1_newton_mb!(model::MVD,ρ, settings::Settings)
-	N = size(model.η1,1)
-	logphat = (sum(Elog(model.λ1[k,:]) for k in 1:N) ./ N)
-	V = model.Corpus1.V
+	D = size(model._η1,1)
+	logphat = (sum(dir_expectation(model._λ1[k,:]) for k in 1:D) ./ D)    # <=====  HERE
+	V = model._corpus1._V
 	#Alpha = ones(Float64, 25)
-	eta1 = deepcopy(model.η1[1,:])
+	eta1 = deepcopy(model._η1[1,:])
 	eta1_new = zeros(Float64,V)
 	ga = zeros(Float64,V)
 	Ha = zeros(Float64,V)
@@ -349,27 +340,28 @@ function update_η1_newton_mb!(model::MVD,ρ, settings::Settings)
 
 	sumgh = 0.0
 	sum1h = 0.0
-	for v in 1:V
-		#global sumgh, sum1h
-		ga[v] = N*(digamma_(sum(eta1))- digamma_(eta1[v]) + logphat[v])
-		Ha[v] = -N*trigamma_(eta1[v])
-		sumgh += ga[v]/Ha[v]
-		sum1h += 1.0/Ha[v]
-	end
-	z = N*trigamma_(sum(eta1))
+	ga .= D .* (logphat .- dir_expectation(eta1))
+	Ha .= -D .* dΨ.(eta1)
+	sumgh = sum(ga ./ Ha)
+	sum1h = sum(1.0./Ha)
+	z = D*dΨ(sum(eta1))
 	c = sumgh/(1.0/z + sum1h)
 
 	step_ = ρ .* (ga .- c)./Ha
 	if all(eta1 .> step_)
 		eta1_new = eta1 .- step_
-		copyto!(model.η1, collect(repeat(eta1_new, inner=(1,N))'))
+		copyto!(model._η1, collect(repeat(eta1_new, inner=(1,D))'))
 	end
 end
+"""
+    update_η2_newton_mb!(model, ρ, settings)
+uses one step `-H⁻¹g` step towards the current value of η2 using the learning rate `ρ`
+"""
 function update_η2_newton_mb!(model::MVD,ρ,  settings::Settings)
-	N = size(model.η2,1)
-	logphat = (sum(Elog(model.λ2[k,:]) for k in 1:N) ./ N)
-	V = model.Corpus2.V
-	eta2 = deepcopy(model.η2[1,:])
+	D = size(model._η2,1)
+	logphat = (sum(dir_expectation(model._λ2[k,:]) for k in 1:D) ./ D)    # <=====  HERE
+	V = model._corpus2._V
+	eta2 = deepcopy(model._η2[1,:])
 	eta2_new = zeros(Float64,V)
 	ga = zeros(Float64,V)
 	Ha = zeros(Float64,V)
@@ -377,19 +369,21 @@ function update_η2_newton_mb!(model::MVD,ρ,  settings::Settings)
 
 	sumgh = 0.0
 	sum1h = 0.0
-	for v in 1:V
-		#global sumgh, sum1h
-		ga[v] = N*(digamma_(sum(eta2))- digamma_(eta2[v]) + logphat[v])
-		Ha[v] = -N*trigamma_(eta2[v])
-		sumgh += ga[v]/Ha[v]
-		sum1h += 1.0/Ha[v]
-	end
-	z = N*trigamma_(sum(eta2))
+	ga .= D .* (logphat .- dir_expectation(eta2))
+	Ha .= -D .* dΨ.(eta2)
+	sumgh = sum(ga ./ Ha)
+	sum1h = sum(1.0./Ha)
+	z = D*dΨ(sum(eta2))
 	c = sumgh/(1.0/z + sum1h)
 
 	step_ = ρ .* (ga .- c)./Ha
 	if all(eta2 .> step_)
 		eta2_new = eta2 .- step_
-		copyto!(model.η2, collect(repeat(eta2_new, inner=(1,N))'))
+		copyto!(model._η2, collect(repeat(eta2_new, inner=(1,D))'))
 	end
 end
+
+# function elbo_at_epoch(model)
+#
+# end
+print("")

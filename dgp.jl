@@ -14,13 +14,6 @@ struct Params
 	ϕ2::Matrix{Float64}
 end
 
-# function create_Alpha(K1::Int64, K2::Int64, prior)
-# 	tot_dim = K1*K2
-# 	res = rand(Dirichlet(tot_dim, prior))
-# 	Res = reshape(res, (K2, K1))
-# 	Res = permutedims(Res, (2,1))
-#     return res, Res
-# end
 function create_Alpha(K1::Int64, K2::Int64, R::Float64,mode::String, s_::Float64)
 	if mode == "uni"
 		res, Res = create_Alpha_unidiag(K1, K2, R, s_)
@@ -30,27 +23,6 @@ function create_Alpha(K1::Int64, K2::Int64, R::Float64,mode::String, s_::Float64
     	return res, Res
 	end
 end
-# function create_Alpha_manual(K1::Int64, K2::Int64, diag_, c)
-#
-# 	@assert K1 == K2
-# 	Res = zeros(Float64, (K1, K2))
-# 	diag_prior = (diag_*c) / K1
-# 	off_diag = (c - diag_*c)/(K1*K2 - K1)
-# 	for i in 1:K1
-# 		Res[i,i] = diag_prior
-# 		for j in 1:K1
-# 			if j  == i
-# 				continue;
-# 			else
-# 				# Res[i,j] = rand(Distributions.Uniform(0.0, .1))
-# 				Res[i,j] = off_diag
-# 			end
-# 		end
-# 	end
-# 	#Res ./= sum(Res)
-# 	res = vectorize_mat(Res)
-#     return res, Res
-# end
 
 function create_Alpha_unidiag(K1::Int64, K2::Int64, R::Float64, s_::Float64)
 
@@ -186,7 +158,6 @@ function simulate_data(N, K1, K2, V1, V2,η1_single_truth, η2_single_truth,wlen
 	y1 = Int64[]
  	y2 = Int64[]
  	while true
-		# prior,β1_single_truth,β2_single_truth = .99, .2, .2
 		α_truth,Α_truth, θ_truth,Θ_truth,
  		ϕ1_truth, ϕ2_truth, η1_truth, η2_truth,V1, V2, corp1, corp2 =
  		Create_Truth(N, K1, K2, V1, V2,η1_single_truth, η2_single_truth, wlen1_single, wlen2_single, R,mode,s_)
@@ -207,3 +178,4 @@ function simulate_data(N, K1, K2, V1, V2,η1_single_truth, η2_single_truth,wlen
 		end
 	 end
 end
+print("");

@@ -90,7 +90,7 @@ function main(args)
 	if !isdir("Data")
 		mkdir("Data")
 	end
-	folder = mkdir(joinpath("Data","$(N)_$(K1)_$(K2)_$(V1)_$(V2)_$(η1_single_truth)_$(η2_single_truth)_$(mode)_$(R)_$(s_)"))
+	folder = mkdir(joinpath("Data","$(N)_$(K1)_$(K2)_$(V1)_$(V2)_$(wlen1_single)_$(wlen2_single)_$(η1_single_truth)_$(η2_single_truth)_$(mode)_$(R)_$(s_)"))
 	#########################
 	α,Α, θ,Θ, ϕ1, ϕ2, η1, η2, V1, V2, corp1, corp2 =
 	 Create_Truth(N, K1, K2, V1, V2, η1_single_truth, η2_single_truth, wlen1_single, wlen2_single, R,mode,s_)
@@ -139,3 +139,4 @@ function main(args)
 end
 
 main(ARGS)
+print("");
