@@ -104,9 +104,11 @@ function update_local!(model::MVD,settings::Settings, mb::Vector{Int64},_terms1:
 		γd = vectorize_mat(γ[d])
 		γd2 = vectorize_mat(γ[d]')
 
-		elogΘd1 = sum(cts2) != 0 ? dir_expectation_shifted(γd) : dir_expectation_shifted(γd) ##change second to unshifted
+		# elogΘd1 = sum(cts2) != 0 ? dir_expectation_shifted(γd) : dir_expectation_shifted(γd) ##change second to unshifted
+		elogΘd1 = dir_expectation_shifted(γd)
 		expelogΘd1 = exp.(elogΘd1)
-		elogΘd2 = sum(cts2) != 0 ? dir_expectation_shifted(γd2) : dir_expectation_shifted(γd2)
+		# elogΘd2 = sum(cts2) != 0 ? dir_expectation_shifted(γd2) : dir_expectation_shifted(γd2)
+		elogΘd2 = dir_expectation_shifted(γd2)
 		expelogΘd2 = exp.(elogΘd2)
 		phinorm1 = collect(expelogΘd1' * expelogϕ1d[:,ids1])[1,:] .+ 1e-100
 		phinorm2 = collect(expelogΘd2' * expelogϕ2d[:,ids2])[1,:] .+ 1e-100
@@ -122,9 +124,11 @@ function update_local!(model::MVD,settings::Settings, mb::Vector{Int64},_terms1:
 			mat = model._α  .+ sumπ1_d .+ sumπ2_d
 			γd = vectorize_mat(mat)
 			γd2 = vectorize_mat(mat')
-			elogΘd1 = sum(cts2) != 0 ? dir_expectation_shifted(γd) : dir_expectation_shifted(γd)##change to unshifted
+			# elogΘd1 = sum(cts2) != 0 ? dir_expectation_shifted(γd) : dir_expectation_shifted(γd)##change to unshifted
+			elogΘd1 = dir_expectation_shifted(γd)
 			expelogΘd1 = exp.(elogΘd1)
-			elogΘd2 = sum(cts2) != 0 ? dir_expectation_shifted(γd2) : dir_expectation_shifted(γd2)##change to unshifted
+			# elogΘd2 = sum(cts2) != 0 ? dir_expectation_shifted(γd2) : dir_expectation_shifted(γd2)##change to unshifted
+			elogΘd2 = dir_expectation_shifted(γd2)
 			expelogΘd2 = exp.(elogΘd2)
 			phinorm1 = collect(expelogΘd1' * expelogϕ1d[:,ids1])[1,:] .+ 1e-100
 			phinorm2 = collect(expelogΘd2' * expelogϕ2d[:,ids2])[1,:] .+ 1e-100
@@ -248,8 +252,6 @@ function calc_perp(model::MVD,hos1_dict::Dict{Int64,Array{Int64,1}},
 	validation = collect(keys(hos1_dict))
 
 	for d in validation
-
-
 		theta_bar = get_holdout_Θd(obs1_dict, obs2_dict,d, model, count_params,settings)
 		for v in hos1_dict[d]
 			tmp = 0.0
@@ -301,56 +303,90 @@ uses one step `-H⁻¹g` step towards the current value of α using the learning
 """
 
 function update_α_newton_mb!(model::MVD,ρ, _D1::Int64,mb::Vector{Int64}, h_map::Vector{Bool}, settings::Settings)
-	D = _D1
-	n = length(mb)
-	logphat = vectorize_mat(mean(dir_expectation2D.(model._γ[mb])))     # <=====  HERE
 
-	K = prod(size(model._α))
-	Alpha = vectorize_mat(deepcopy(model._α))
-	Alpha_new = zeros(Float64,K)
-	ga = zeros(Float64,K)
-	Ha = zeros(Float64,K)
-	ga .= D .* (logphat .- dir_expectation(Alpha)) ####
-	Ha .= -D .*dΨ.(Alpha)   ####
-	sumgh = sum(ga./Ha)
-	sum1h = sum(1.0./Ha)
-	z = D*dΨ(sum(Alpha)) ####
-	c = sumgh/(1.0/z + sum1h)
-	step_ = ρ .* (ga .- c)./Ha
+	D = _D1 ;n = length(mb);K = prod(size(model._α));
+	α = vectorize_mat(deepcopy(model._α)); α_new = zeros(Float64,K);
 
-	if all(Alpha .> step_)
-		Alpha_new = Alpha .- step_
-		copyto!(model._α, matricize_vec(Alpha_new, model._K1, model._K2))
+	sstats = vectorize_mat(mean(dir_expectation2D.(model._γ[mb])))
+
+	g = D .* (sstats .- dir_expectation(α))
+	H = -D .*dΨ.(α)
+	# H = -D .*dΨ.(α .+ .5)
+	_gH = sum(g./H); _1H = sum(1.0./H);
+	z = D*dΨ(sum(α)) ; c = _gH/(1.0/z + _1H)
+
+	step_ = ρ .* (g .- c)./H
+
+	if all(α .> step_)
+		α_new = α .- step_
+		copyto!(model._α, matricize_vec(α_new, model._K1, model._K2))
 	end
 end
+
+
+function update_α_newton_mb2!(model::MVD,ρ, _D1::Int64,mb::Vector{Int64}, h_map::Vector{Bool}, settings::Settings)
+	K = prod(size(model._α))
+	iq = zeros(Float64, K)
+	g = zeros(Float64, K)
+
+	α = vectorize_mat(model._α)
+	α[α .== 1e-20] .= 1e-12
+	α0 = sum(α)
+	elogp =  vectorize_mat(mean(dir_expectation2D.(model._γ[mb])))
+	converged = false
+	while !converged
+
+		iz = 1.0/dΨ(α0)
+		gnorm = 0.0
+		b = 0.0
+		iqs = 0.0
+		for k in 1:K
+			global b, iqs, gnorm, elogp, iz
+			ak = α[k]
+			g[k] = gk = -dir_expectation(α)[k] + elogp[k]
+			iq[k] = -1.0/dΨ(ak)
+			b += gk*iq[k]
+			iqs += iq[k]
+			agk = abs(gk)
+			if agk > gnorm
+				gnorm = agk
+			end
+		end
+		b /= (iz + iqs)
+		for k in 1:K
+			α[k] -= (g[k] - b)*iq[k]
+			if α[k] < 1e-12
+				α[k] = 1e-12
+			end
+		end
+		α0 = sum(α)
+		converged = gnorm < 1e-5
+	end
+	return α
+end
+
+
 """
     update_η1_newton_mb!(model, ρ, settings)
 uses one step `-H⁻¹g` step towards the current value of η1 using the learning rate `ρ`
 """
 function update_η1_newton_mb!(model::MVD,ρ, settings::Settings)
-	D = size(model._η1,1)
-	logphat = (sum(dir_expectation(model._λ1[k,:]) for k in 1:D) ./ D)    # <=====  HERE
-	V = model._corpus1._V
-	#Alpha = ones(Float64, 25)
-	eta1 = deepcopy(model._η1[1,:])
-	eta1_new = zeros(Float64,V)
-	ga = zeros(Float64,V)
-	Ha = zeros(Float64,V)
+	D = size(model._η1,1); V = model._corpus1._V
+	η1 = deepcopy(model._η1[1,:]) ;η1_new = zeros(Float64,V);
 
+	sstats = (sum(dir_expectation(model._λ1[k,:]) for k in 1:D) ./ D)    # <=====  HERE
 
-	sumgh = 0.0
-	sum1h = 0.0
-	ga .= D .* (logphat .- dir_expectation(eta1))
-	Ha .= -D .* dΨ.(eta1)
-	sumgh = sum(ga ./ Ha)
-	sum1h = sum(1.0./Ha)
-	z = D*dΨ(sum(eta1))
-	c = sumgh/(1.0/z + sum1h)
+	g = D .* (sstats .- dir_expectation(η1))
+	H = -D .* dΨ.(η1)
+	_gH = sum(g ./ H) ; _1H = sum(1.0./H)
+	z = D*dΨ(sum(η1))
+	c = _gH/(1.0/z + _1H)
 
-	step_ = ρ .* (ga .- c)./Ha
-	if all(eta1 .> step_)
-		eta1_new = eta1 .- step_
-		copyto!(model._η1, collect(repeat(eta1_new, inner=(1,D))'))
+	step_ = ρ .* (g .- c)./H
+
+	if all(η1 .> step_)
+		η1_new = η1 .- step_
+		copyto!(model._η1, collect(repeat(η1_new, inner=(1,D))'))
 	end
 end
 """
@@ -358,32 +394,33 @@ end
 uses one step `-H⁻¹g` step towards the current value of η2 using the learning rate `ρ`
 """
 function update_η2_newton_mb!(model::MVD,ρ,  settings::Settings)
-	D = size(model._η2,1)
-	logphat = (sum(dir_expectation(model._λ2[k,:]) for k in 1:D) ./ D)    # <=====  HERE
-	V = model._corpus2._V
-	eta2 = deepcopy(model._η2[1,:])
-	eta2_new = zeros(Float64,V)
-	ga = zeros(Float64,V)
-	Ha = zeros(Float64,V)
+	D = size(model._η2,1); V = model._corpus2._V
+	η2 = deepcopy(model._η2[1,:]) ;η2_new = zeros(Float64,V);
 
+	sstats = (sum(dir_expectation(model._λ2[k,:]) for k in 1:D) ./ D)    # <=====  HERE
 
-	sumgh = 0.0
-	sum1h = 0.0
-	ga .= D .* (logphat .- dir_expectation(eta2))
-	Ha .= -D .* dΨ.(eta2)
-	sumgh = sum(ga ./ Ha)
-	sum1h = sum(1.0./Ha)
-	z = D*dΨ(sum(eta2))
-	c = sumgh/(1.0/z + sum1h)
+	g = D .* (sstats .- dir_expectation(η2))
+	H = -D .* dΨ.(η2)
+	_gH = sum(g ./ H) ; _1H = sum(1.0./H)
+	z = D*dΨ(sum(η2))
+	c = _gH/(1.0/z + _1H)
 
-	step_ = ρ .* (ga .- c)./Ha
-	if all(eta2 .> step_)
-		eta2_new = eta2 .- step_
-		copyto!(model._η2, collect(repeat(eta2_new, inner=(1,D))'))
+	step_ = ρ .* (g .- c)./H
+
+	if all(η2 .> step_)
+		η2_new = η2 .- step_
+		copyto!(model._η2, collect(repeat(η2_new, inner=(1,D))'))
 	end
 end
 
-# function elbo_at_epoch(model)
-#
+# function elboΘ(model, d::Int64)
+# 	(ElogpΘ(model,d)- ElogqΘ(model, d))
 # end
+# function ElogpΘ(model,d)
+# 	entropy(Dirichlet(vectorize_mat(model._α))) + sum((model._α .- 1.0) .* dir_expectation2D(model._γ[d]))
+# end
+# function ElogqΘ(model,d)
+# 	-entropy(Dirichlet(vectorize_mat(model._γ[d])))
+# end
+#
 print("")

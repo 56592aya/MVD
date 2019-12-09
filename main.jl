@@ -132,10 +132,11 @@ function main(args)
 	_terms2 = [_C2[i]._terms for i in 1:model._corpus2._D];_counts1 = [_C1[i]._counts for i in 1:model._corpus1._D];
 	_counts2 = [_C2[i]._counts for i in 1:model._corpus2._D];_lengths1 = [_C1[i]._length for i in 1:model._corpus1._D];
 	_lengths2 = [_C2[i]._length for i in 1:model._corpus2._D];	_train_ids = collect(1:_D)[.!h_map]
-	perp1_list = Float64[];	perp2_list = Float64[];
+	perp1_list = Float64[];	perp2_list = Float64[];burnin = true
 
 	train(model, settings, folder, data_folder, h_map,count_params, mbs, nb, mb_size,perp1_list,perp2_list,VI_CONVERGED,
-		hos1_dict,obs1_dict,hos2_dict,obs2_dict, mindex, epoch_count,_C1,_C2,_V1,_V2,_D,_D1,_D2,_K1,_K2,_terms1,_terms2,_counts1,_counts2,_lengths1,_lengths2,_train_ids)
+		hos1_dict,obs1_dict,hos2_dict,obs2_dict, mindex, epoch_count,_C1,_C2,_V1,_V2,_D,_D1,_D2,_K1,_K2,_terms1,_terms2,_counts1,_counts2,_lengths1,_lengths2,_train_ids,
+		burnin)
 end
 
 main(ARGS)

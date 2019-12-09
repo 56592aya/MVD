@@ -1,6 +1,3 @@
-################################################################################
-##############################  DATA STRUCURES  ################################
-################################################################################
 """
     vectorize_mat(mat)
 	 to make a vector from a matrix on the row basis.
@@ -98,24 +95,17 @@ end
 	mutable struct for a single document
 """
 mutable struct Document <: AbstractDocument
-	"terms of a document"
 	_terms::AbstractVector{Int64}
-	"counts of each term in the order of terms"
 	_counts::AbstractVector{Int64}
-	"a single number which is the sum of _counts"
 	_length::Int64
 end
-
 """
 	Corpus
 	mutable struct for _corpus of _docs
 """
 mutable struct Corpus <: AbstractCorpus
-	"list of document"
 	_docs::AbstractVector{Document}
-	"number of documents"
 	_D::Int64
-	"number of unique words in the _corpus vocabulary"
 	_V::Int64
 end
 
@@ -124,66 +114,33 @@ end
 	counts that are specific to the training sample
 """
 struct TrainCounts <: AbstractCounts
-	"number of documents in the 1st view"
 	_D1::Int64
-	"number of documents in the 2nd view"
 	_D2::Int64
-	"number of topics in the 1st view"
 	_K1::Int64
-	"number of topics in the 2nd view"
 	_K2::Int64
 end
-"""
-	MVD
-	Multivariate Dirichlet model\n
-	Consists of constants, variational params and placeholders
-"""
-mutable struct MVD <: AbstractModel
-	"number of topics in the 1st view"
-    _K1::Int64
-	"number of topics in the 2nd view"
-    _K2::Int64
-	"corpus of type Corpus for 1st view"
-    _corpus1::Corpus
-	"corpus of type Corpus for 2nd view"
-    _corpus2::Corpus
-	"model prior for document-level topic distribution"
-    _α::AbstractArray{Float64}
-	"old value for document-level topic distribution"
-    _α_old::AbstractArray{Float64}
-	"model prior for per topic word distribution in the 1st view"
-    _η1::AbstractArray{Float64}
-	"old value for per topic word distribution in the 1st view"
-    _η1_old::AbstractArray{Float64}
-	"model prior for per topic word distribution in the 2nd view"
-	_η2::AbstractArray{Float64}
-	"old value for per topic word distribution in the 2nd view"
-    _η2_old::AbstractArray{Float64}
-	"variational expectation of log-topics in the 1st view"
-    _elogϕ1::AbstractArray{Float64}
-	"variational expectation of log-topics in the 2nd view"
-    _elogϕ2::AbstractArray{Float64}
-	"variational parameter of document-level topic distribution"
-    _γ::AbstractVector{Matrix{Float64}}
-	"old value for variational parameter of document level topic distribution"
-    _γ_old::AbstractArray{Float64}
-	"variational parameter for topics in the 1st view"
-    _λ1::AbstractArray{Float64}
-	"old value for variational parameter for topics in the 1st view"
-    _λ1_old::AbstractArray{Float64}
-	"variational parameter for topics in the 2nd view"
-    _λ2::AbstractArray{Float64}
-	"old value variational parameter for topics in the 2nd view"
-    _λ2_old::AbstractArray{Float64}
-	"psuedocounts for topic contribution of words per minibatch in the 1st view"
-	_sumπ1_mb::AbstractArray{Float64}
-	"psuedocounts for topic contribution of words per minibatch in the 2nd view"
-	_sumπ2_mb::AbstractArray{Float64}
 
-	"""
-		MVD(K1, K2, C1, C2, α,η1, η2)
-		Used to create a new MVD object
-	"""
+mutable struct MVD <: AbstractModel
+    _K1::Int64
+    _K2::Int64
+    _corpus1::Corpus
+    _corpus2::Corpus
+    _α::AbstractArray{Float64}
+    _α_old::AbstractArray{Float64}
+    _η1::AbstractArray{Float64}
+    _η1_old::AbstractArray{Float64}
+	_η2::AbstractArray{Float64}
+    _η2_old::AbstractArray{Float64}
+    _elogϕ1::AbstractArray{Float64}
+    _elogϕ2::AbstractArray{Float64}
+    _γ::AbstractVector{Matrix{Float64}}
+    _γ_old::AbstractArray{Float64}
+    _λ1::AbstractArray{Float64}
+    _λ1_old::AbstractArray{Float64}
+    _λ2::AbstractArray{Float64}
+    _λ2_old::AbstractArray{Float64}
+	_sumπ1_mb::AbstractArray{Float64}
+	_sumπ2_mb::AbstractArray{Float64}
 	function MVD(K1::Int64, K2::Int64, corpus1::Corpus, corpus2::Corpus,
 		 		alpha_prior_::Float64, eta1_prior_::Float64, eta2_prior_::Float64)
 		model = new()
@@ -217,38 +174,20 @@ end
 	consisting of mostly constants.
 """
 mutable struct Settings <: AbstractSettings
-	"K1×K2 zero matrix "
 	_zeroer_K1K2::AbstractArray{Float64}
-	"K1×V1 zero matrix "
 	_zeroer_K1V1::AbstractArray{Float64}
-	"K2×V2 zero matrix "
 	_zeroer_K2V2::AbstractArray{Float64}
-	"maximum number of iterations for Variationl Inference"
 	_MAX_VI_ITER::Int64
-	"maximum number of newton updates for α update;used only in full-batch setting"
 	_MAX_ALPHA_ITER::Int64
-	"maximum number of iterations for updating γ"
 	_MAX_GAMMA_ITER::Int64
-	"maximum number of times to decay the learning rate of α;used only in full-batch setting"
 	_MAX_ALPHA_DECAY::Int64
-	"factor of decay for the learning rate of α;used only in full-batch setting"
 	_ALPHA_DECAY_FACTOR::Float64
-	"threshold of convergence for update of α"
 	_ALPHA_THRESHOLD::Float64
-	"threshold of convergence for update of γ"
 	_GAMMA_THRESHOLD::Float64
-	"threshold of convergence for variational perplexity"
 	_VI_THRESHOLD::Float64
-	"number of epochs to evaluate perplexity and print status"
 	_EVAL_EVERY::Int64
-	"offset of learning rate for the global variational parameter"
 	_LR_OFFSET::Float64
-	"kappa of learning  for the global variational parameter"
 	_LR_KAPPA::Float64
-	"""
-		Settings(K1, K2, C1, C2, VI_I, α_I,γ_I, α_decay,decay_fac, αTh,γTh,vTh,every,offset,κ )
-		create a new object of type Settings
-	"""
 	function Settings(K1::Int64, K2::Int64,corpus1::Corpus, corpus2::Corpus,
 					 MAX_VI_ITER::Int64,MAX_ALPHA_ITER::Int64,MAX_GAMMA_ITER::Int64,
 					 MAX_ALPHA_DECAY::Int64,ALPHA_DECAY_FACTOR::Float64,
@@ -501,7 +440,6 @@ function dir_expectationByRow_shifted!(Y::T,X::T) where T <: AbstractArray{Float
 	end
 	return
 end
-
 """
     mean_dir_dot(matlist)
 

@@ -1,18 +1,29 @@
 include("loader.jl")
 function train(model, settings, folder, data_folder, h_map,count_params, mbs, nb, mb_size,perp1_list,perp2_list,VI_CONVERGED,
 	hos1_dict,obs1_dict,hos2_dict,obs2_dict, mindex, epoch_count,_C1,_C2,_V1,_V2,_D,_D1,_D2,_K1,_K2,
-	_terms1,_terms2,_counts1,_counts2,_lengths1,_lengths2,_train_ids)
+	_terms1,_terms2,_counts1,_counts2,_lengths1,_lengths2,_train_ids, burnin)
 	@info "VI Started"
+	###
+	complete_train_ids = [i for i in _train_ids if _lengths2[i] > 0]
+	###
 	for iter in 1:settings._MAX_VI_ITER
 		# iter = 1
 		check_eval = (epoch_count % settings._EVAL_EVERY == 0) || (epoch_count == 0)
 		check_epoch = (mindex  == nb)
+
 		if mindex == (nb+1) || iter == 1
 			if check_eval
 				VI_CONVERGED = evaluate_at_epoch(folder,model, h_map, settings, count_params,hos1_dict,obs1_dict,hos2_dict,obs2_dict,
 							perp1_list,perp2_list,VI_CONVERGED,epoch_count)
 			end
-			mbs, nb = epoch_batches(_train_ids, mb_size)
+
+			# mbs, nb = epoch_batches(_train_ids, mb_size)
+			if burnin
+				mbs, nb = epoch_batches(complete_train_ids, mb_size)
+			else
+				mbs, nb = epoch_batches(_train_ids, mb_size)
+			end
+
 			mindex = 1
 		end
 		if check_epoch
@@ -32,15 +43,31 @@ function train(model, settings, folder, data_folder, h_map,count_params, mbs, nb
 			  ### Global Step ###
 		################################
 		ρ = get_ρ(iter,settings)
-		update_global!(model, ρ, _D1,_D2, _d1,_d2)
+		if burnin
+			update_global!(model, ρ, length(complete_train_ids),length(complete_train_ids), _d1,_d2)
+		else
+			update_global!(model, ρ, _D1,_D2, _d1,_d2)
+		end
+
 		################################
 			 ### Hparam Learning ###
 		################################
-		update_α_newton_mb!(model,ρ, _D1,mb, h_map, settings)
-		if maximum(model._α) > 0.5 && epoch_count > 15
-			model._α .-= 0.5
-			model._α[model._α .< 0.0] .= 1e-20
+		model._α_old = deepcopy(model._α)
+		if burnin
+			update_α_newton_mb!(model,ρ, length(complete_train_ids),mb, h_map, settings)
+		else
+			update_α_newton_mb!(model,ρ, _D1,mb, h_map, settings)
 		end
+		if burnin && (mean_change(model._α, model._α_old) < 1e-3) && epoch_count > 20
+			@info "end of burn-in"
+			burnin = false
+			if maximum(model._α) > 0.5 && epoch_count > 15
+				model._α .-= 0.5
+				model._α[model._α .< 0.0] .= 1e-20
+			end
+		end
+
+
 		update_η1_newton_mb!(model,ρ, settings)
 		update_η2_newton_mb!(model,ρ, settings)
 		################################

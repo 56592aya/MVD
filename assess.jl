@@ -68,6 +68,7 @@ function do_plots(model,theta_est, ϕ1_est, ϕ2_est, ϕ1_truth, ϕ2_truth, theta
 		theta_est_1 = zeros(Float64, (length(theta_truth), size(ϕ1_truth,1)));
 		theta_est_2 = zeros(Float64, (length(theta_truth), size(ϕ2_truth,1)));
 
+
 		for i in 1:size(theta_est_1,1)
 			for j in 1:size(ϕ1_truth,1)
 				theta_est_1[i,j] = sum(theta_est[i][inds1[j],:])
@@ -156,9 +157,9 @@ function do_plots(model,theta_est, ϕ1_est, ϕ2_est, ϕ1_truth, ϕ2_truth, theta
 			Plots.plot(plts..., layout =(1, length(inds2)), legend=false)
 			savefig("pics/thetas2_ho.png")
 		end
-		absent_map = [i for i in 1:length(model._corpus1._docs) if model._corpus2._docs[i]._length  == 0]
+		absent_map = [i for i in collect(1:length(model._corpus1._docs))[.!h_map] if model._corpus2._docs[i]._length  == 0]
 		if !isempty(absent_map)
-			present_map = [i for i in 1:length(model._corpus1._docs) if model._corpus2._docs[i]._length != 0]
+			present_map = [i for i in collect(1:length(model._corpus1._docs))[.!h_map] if model._corpus2._docs[i]._length != 0]
 			plts = [];
 			for k in 1:length(inds2)
 				p = scatter(theta_truth_2[present_map,k], theta_est_2[present_map,k], grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
