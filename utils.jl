@@ -90,6 +90,19 @@ function matricize_vec(vec_::T, K1::Int64, K2::Int64) where T <: AbstractVector{
 	end
 	return mat_
 end
+function get1DColIndex(K1, K2, c)
+	return [K2*(k1-1) + c for k1 in 1:K1]
+end
+function get1DColIndices(K1, K2)
+	collect(hcat([[K2*(k1-1) + c for k1 in 1:K1] for c in 1:K2]...)')
+end
+
+function get1DRowIndex(K1, K2, r)
+	return [K2*(r-1) + k2 for k2 in 1:K2]
+end
+function get1DRowIndices(K1, K2)
+	return collect(hcat([[K2*(r-1) + k2 for k2 in 1:K2] for r in 1:K1]...)')
+end
 """
 	Document
 	mutable struct for a single document
@@ -230,288 +243,59 @@ end
 function expdot(X::AbstractVector{Matrix{Float64}})
 	[exp.(x) for x in X]
 end
-"""
-	lnΓ(x)
-	computes the loggamma of `x`
-	# Examples
-	```julia-repl
-	julia> x = 1.0
-	julia> lnΓ(x)
-	-0.0003604287667536843
-	```
-"""
 
 function lnΓ(x::T) where T <: Real
-	z=1.0 / (x * x);
-	x=x + 6.0;
-    z =(((-0.000595238095238*z+0.000793650793651)*z-0.002777777777778)*z+0.083333333333333)/x;
-    z=(x-0.5)*log(x)-x+0.918938533204673+z-log(x-1)- log(x-2)-log(x-3)-log(x-4)-log(x-5)-log(x-6);
+	z = logabsgamma(x)[1]
    	return z;
 end
-"""
-	Ψ(x)
-	computes the digamma of `x`
-	# Examples
-	```julia-repl
-	julia> x = 1.0
-	julia> Ψ(x)
-	-0.5772156648761266
-	```
-"""
-function Ψ(x::T) where T<: Real
-	x=x+6.0
-	p=1.0/abs2(x)
-	p= (((0.004166666666667*p-0.003968253986254)*p+0.008333333333333)*p-0.083333333333333)*p
-	p= p+log(x)-0.5/x-1.0/(x-1.0)-1.0/(x-2.0)-1.0/(x-3.0)-1.0/(x-4.0)-1.0/(x-5.0)-1.0/(x-6.0)
-	return p
-end
-"""
-	dΨ(x)
-	computes the trigamma(derivaite of digamma) of `x`
-	# Examples
-	```julia-repl
-	julia> x = 1.0
-	julia> dΨ(x)
-	1.6449340668506196
-	```
-"""
-function dΨ(x::T) where T <: Real
-	x=x+6.0;
-    p=1.0/(x*x);
-    p=(((((0.075757575757576*p-0.033333333333333)*p+0.0238095238095238)
-         *p-0.033333333333333)*p+0.166666666666667)*p+1)/x+0.5*p;
-    for i in 1:6
-        x=x-1.0;
-        p=1.0/(x*x)+p;
-	end
-    return(p)
-end
-"""
-	dΨ(x)
-	computes the shifted trigamma(derivaite of digamma) of `x`
-"""
-function dΨ_shifted(x::T) where T <: Real
-	x = x + .5
-	x=x+6.0;
-    p=1.0/(x*x);
-    p=(((((0.075757575757576*p-0.033333333333333)*p+0.0238095238095238)
-         *p-0.033333333333333)*p+0.166666666666667)*p+1)/x+0.5*p;
-    for i in 1:6
-        x=x-1.0;
-        p=1.0/(x*x)+p;
-	end
-    return(p)
-end
-"""
-	δ(x,y)
-	checks whether `x == y`
-	# Examples
-	```julia-repl
-	julia> x = 1, y == 2
-	julia> δ(x,y)
-	false
-	julia> x = 1, y == 1
-	julia> δ(x,y)
-	true
-	```
-"""
+Ψ = digamma
+dΨ = trigamma
+
 function δ(i::Int64,j::Int64)
-	if i == j
-		return 1
-	else
-		return 0
-	end
+	return sum(i == j)
 end
-"""
-	dir_expectation(X)
-	Dirichlet expectation of `log` of `X` vector
-	# Examples
-	```julia-repl
-	julia> X = [1.0 ,2.0, 3.0, 4.0]
-	julia> dir_expectation(X)
-	4-element Array{Float64,1}:
-	 -2.828968253942854
-	 -1.828968253961494
-	 -1.3289682539661583
-	 -0.9956349206341892
-	```
-"""
-function dir_expectation(X::T) where T <: AbstractVector{Float64}
+
+function dir_𝔼log(X) where T <: AbstractArray{<:Real}
     Ψ.(X) .- Ψ(sum(X))
 end
-"""
-	dir_expectation!(X)
-	in-place Dirichlet expectation of `log` of `X` vector into `Y` vector
-	# Examples
-	```julia-repl
-	julia> X = [1.0 ,2.0, 3.0, 4.0];Y = zero(X)
-	julia> dir_expectation!(Y,X)
-	```
-"""
-function dir_expectation!(Y::T,X::T) where T <: AbstractVector{Float64}
-    Y .= dir_expectation(X);
-	return
+function dir_𝔼log_shifted(X) where T <: AbstractArray{<:Real}
+    Ψ.(X .+ .5) .- Ψ(sum(X) + .5)
 end
-"""
-	dir_expectation2D(X)
-	Dirichlet expectation of `log` of `X` matrix
-	# Examples
-	```julia-repl
-	julia> X = [1.0 2.0; 3.0 4.0]
-	julia> dir_expectation2D(X)
-	2×2 Array{Float64,2}:
-	 -2.82897  -1.82897
-	 -1.32897  -0.995635
-	```
-"""
-
-function dir_expectation2D(X::T) where T <: AbstractArray{Float64}
-    Ψ.(X) .- Ψ(sum(X))
+function dir_𝔼log!(Y::T,X::T) where T <: AbstractArray{<:Real}
+    Y .= dir_𝔼log(X)
 end
-"""
-	dir_expectation2D!(X)
-	in-place Dirichlet expectation of `log` of `X` matrix into `Y` matrix
-	# Examples
-	```julia-repl
-	julia> X = [1.0 2.0; 3.0 4.0]; Y = zero(X)
-	julia> dir_expectation2D!(Y,X)
-	```
-"""
-function dir_expectation2D!(Y::T,X::T) where T <: AbstractArray{Float64}
-	Y .= dir_expectation2D(X);
-	return
+function dir_𝔼log_shifted!(Y::T,X::T) where T <: AbstractArray{<:Real}
+    Y .= dir_𝔼log_shifted(X)
 end
-
-"""
-	dir_expectationByRow!(X)
-	in-place Dirichlet expectation of `log` of `X` matrix into `Y` matrix by row
-	# Examples
-	```julia-repl
-	julia> X = [1.0 2.0; 3.0 4.0]; Y = zero(X)
-	julia> dir_expectationByRow!(Y,X)
-	```
-"""
-function dir_expectationByRow!(Y::T,X::T) where T <: AbstractArray{Float64}
+function dir_𝔼log_row!(Y::T,X::T) where T <: AbstractArray{<:Real}
 	for (k,row) in enumerate(eachrow(X))
-		Y[k,:] .= dir_expectation(row)
+		Y[k,:] .= dir_𝔼log(row)
 	end
 	return
 end
-######################################################
-######################################################
-"""
-	dir_expectation_shifted(X)
-	shifted Dirichlet expectation of `log` of `X` vector
-"""
-function dir_expectation_shifted(X::T) where T <: AbstractVector{Float64}
-    Ψ.(X .+ 0.5) .- Ψ(sum(X) + 0.5)
-end
-"""
-	dir_expectation_shifted!(X)
-	in-place shifted Dirichlet expectation of `log` of `X` vector into `Y` vector
-"""
-function dir_expectation_shifted!(Y::T,X::T) where T <: AbstractVector{Float64}
-    Y .= dir_expectation_shifted(X);
-	return
-end
-"""
-	dir_expectation2D_shifted(X)
-	shifted Dirichlet expectation of `log` of `X` matrix
-"""
-function dir_expectation2D_shifted(X::T) where T <: AbstractArray{Float64}
-    Ψ.(X .+ 0.5) .- Ψ(sum(X) + 0.5)
-end
-"""
-	dir_expectation2D_shifted!(X)
-	in-place shifted Dirichlet expectation of `log` of `X` matrix into `Y` matrix
-"""
-function dir_expectation2D_shifted!(Y::T,X::T) where T <: AbstractArray{Float64}
-	Y .= dir_expectation2D_shifted(X);
-	return
-end
-
-"""
-	dir_expectationByRow_shifted!(X)
-	in-place shifted Dirichlet expectation of `log` of `X` matrix into `Y` matrix by row
-"""
-function dir_expectationByRow_shifted!(Y::T,X::T) where T <: AbstractArray{Float64}
+function dir_𝔼log_row_shifted!(Y::T,X::T) where T <: AbstractArray{<:Real}
 	for (k,row) in enumerate(eachrow(X))
-		Y[k,:] .= dir_expectation_shifted(row)
+		Y[k,:] .= dir_𝔼log_shifted(row)
 	end
 	return
 end
-"""
-    mean_dir_dot(matlist)
 
-	computes the Dirichlet mean of a vector of matrices `matlist`
-	# Examples
-	```julia-repl
-	julia> matlist = [[1.0 3.0; 2.0 4.0].+j for j in 0:1];matlist
-	2-element Array{Array{Float64,2},1}:
-	 [1.0 3.0; 2.0 4.0]
-	 [2.0 4.0; 3.0 5.0]
-	julia> mean_dir_dot(matlist)
-	2-element Array{Array{Float64,2},1}:
-	 [0.1 0.3; 0.2 0.4]
-	 [0.14285714285714285 0.2857142857142857; 0.21428571428571427 0.35714285714285715]
-	 ```
-"""
-function mean_dir_dot(gamma)
-	theta_est = deepcopy(gamma)
+function mean_dir(γs)
+	theta_est = deepcopy(γs)
 	for i in 1:length(theta_est)
-		s = sum(gamma[i])
+		s = sum(γs[i])
 		theta_est[i] ./= s
 	end
 	return theta_est
 end
-"""
-    mean_dir_by_row(mat)
-
-	computes the Dirichlet mean of rows of the matrix `mat`
-	# Examples
-	```julia-repl
-	julia> mat = [1.0 3.0; 2.0 4.0];mat
-	2×2 Array{Float64,2}:
-	 1.0  2.0
-	 3.0  4.0
-	julia> vectorize_mat(mat)
-	2×2 Array{Float64,2}:
-	 0.25      0.75
-	 0.333333  0.666667
-	```
-"""
-function mean_dir_by_row(lambda_::Matrix{Float64})
-	res = zeros(Float64, size(lambda_))
-	for k in 1:size(lambda_, 1)
-		res[k,:] .= mean(Dirichlet(lambda_[k,:]))
+function mean_dir_by_row(λs::Matrix{Float64})
+	res = zeros(Float64, size(λs))
+	for k in 1:size(λs, 1)
+		res[k,:] .= mean(Dirichlet(λs[k,:]))
 	end
 	return res
 end
-"""
-	sort_by_argmax!(X)
-	sorts the rows of `X` matrix based on the values in their columns and \n
-	returns the updated matrix and the row indices
-	# Examples
-	```julia-repl
-	julia> X = [1.0 2.0; 3.0 2.0; 2.0 4.0]; X
-	 1.0  2.0
-	 3.0  2.0
-	 2.0  4.0
-	3×2 Array{Float64,2}:
-	 3.0  2.0
-	 2.0  3.0
-	 1.0  3.0
-	julia> X,inds = sort_by_argmax!(X);
-	julia> X
-	3.0  2.0
-	1.0  2.0
-	2.0  4.0
-	julia> inds
-	2
-	1
-	3
-	```
-"""
+
 function sort_by_argmax!(X::Matrix{Float64})
 
 	n_row=size(X,1)
@@ -537,47 +321,18 @@ function sort_by_argmax!(X::Matrix{Float64})
 	X[:]=X_tmp[:]
 	X, permuted_index
 end
-"""
-	find_all!(val, X)
-	return a `Bool` vector of places whether `val` occured or not in `X`
-	# Examples
-	```julia-repl
-	julia> val = 2; X = [2, 3, 4, 5, 2];
-	julia> find_all(val, X)
-	2-element Array{Int64,1}:
-	 1
-	 5
-	```
-"""
+
 function find_all(val::Int64, doc::Vector{Int64})
 	findall(x -> x == val, doc)
 end
-"""
-	get_ρ!(i, settings)
-	computes the learning rate according to \n
-	(S+`i`)^-κ
-"""
-function get_ρ(i::Int64, settings::Settings)
-	return (settings._LR_OFFSET+convert(Float64, i))^(-settings._LR_KAPPA)
+
+function get_ρ(i::Int64, S::Settings)
+	return (S._LR_OFFSET+convert(Float64, i))^(-S._LR_KAPPA)
 end
-"""
-	get_ρ!(epoch, mb,mb_index, settings)
-	computes the learning rate according to \n
-	(S+`epoch` + (`mb_index`/|`mb`|))^-κ
-"""
-function get_ρ(epoch_count, mb, mindex,settings::Settings)
-	return (settings._LR_OFFSET+epoch_count+(mindex/length(mb)))^(-settings._LR_KAPPA)
+
+function get_ρ(epoch, mb, m,S::Settings)
+	return (S._LR_OFFSET+epoch+(m/length(mb)))^(-S._LR_KAPPA)
 end
-"""
-	mean_change(new_, old_)
-	computes the mean change of two same-shape arrays `new_` and `old_`
-	# Examples
-	```julia-repl
-	julia>  new_ = [1.1, 1.2, 1.3, 1.4];old_ = [1.0, 1.0, 1.0, 1.0];
-	julia> mean_change(new_, old_)
-	0.25
-	```
-"""
 function mean_change(new::AbstractArray{R}, old::AbstractArray{R}) where  {R<:AbstractFloat}
 	n = length(new)
 	change = sum(abs.(new .- old))/n
@@ -640,7 +395,7 @@ function figure_sparsity!(model::MVD, sparsity::Float64, all_::Bool, folder::Str
 			end
 			y2 = Int64[]
 			corp = deepcopy(model._corpus2)
-			for i in 1:length(corp._cdocs)
+			for i in 1:length(corp._docs)
 				num_remove = sparsity*corp._docs[i]._length
 				count = 0
 				it = 1
@@ -791,13 +546,17 @@ end
 	```
 """
 function epoch_batches(_train_ids::Vector{Int64}, mb_size::Int64)
+	size_ = mb_size
+	if mb_size >= length(_train_ids)
+		size_ = length(_train_ids)
+	end
 	N_ = length(_train_ids)
-	div_ = div(N_, mb_size)
-	nb = (div_ * mb_size - N_) < 0 ? div_ + 1 : div_
+	div_ = div(N_, size_)
+	nb = (div_ * size_ - N_) < 0 ? div_ + 1 : div_
 	y = shuffle(_train_ids)
 	x = [Int64[] for _ in 1:nb]
 	for n in 1:nb
-		while length(x[n]) < mb_size && !isempty(y)
+		while length(x[n]) < size_ && !isempty(y)
 			push!(x[n],pop!(y))
 		end
 	end
@@ -810,20 +569,5 @@ macro shift(var)
 end
 macro bump(var)
 	return :($var .+ 1e-100)
-end
-
-
-function get1DColIndex(K1, K2, c)
-	return [K2*(k1-1) + c for k1 in 1:K1]
-end
-function get1DColIndices(K1, K2)
-	collect(hcat([[K2*(k1-1) + c for k1 in 1:K1] for c in 1:K2]...)')
-end
-
-function get1DRowIndex(K1, K2, r)
-	return [K2*(r-1) + k2 for k2 in 1:K2]
-end
-function get1DRowIndices(K1, K2)
-	return collect(hcat([[K2*(r-1) + k2 for k2 in 1:K2] for r in 1:K1]...)')
 end
 print("")

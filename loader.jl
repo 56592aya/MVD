@@ -1,5 +1,5 @@
 using Pkg
-package_list = [:DataFrames,:DelimitedFiles,:ArgParse,:FileIO,:JLD2,:BenchmarkTools,:Logging,:Random,:Distributions,:LinearAlgebra,:Plots]
+package_list = [:DataFrames,:DelimitedFiles,:ArgParse,:FileIO,:JLD2,:BenchmarkTools,:Logging,:Random,:Distributions,:LinearAlgebra,:Plots,:StatsFuns,:SpecialFunctions]
 for p in package_list
     if in("$(p)",keys(Pkg.installed()))
         @eval using $(p)

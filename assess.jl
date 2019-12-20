@@ -5,7 +5,7 @@ end
 function do_ϕs(model)
 	ϕ1_est = mean_dir_by_row(model._λ1);
 	ϕ2_est = mean_dir_by_row(model._λ2);
-	theta_est = mean_dir_dot(model._γ);
+	theta_est = mean_dir(model._γ);
 	ϕ1_truth = deepcopy(Truth_Params.ϕ1);
 	ϕ2_truth = deepcopy(Truth_Params.ϕ2);
 	theta_truth = deepcopy(Truth_Params.Θ);
@@ -38,6 +38,15 @@ function do_ϕs(model)
 	inds2 = deepcopy(l);
 	println(inds1);
 	println(inds2);
+	#####Something to Consider
+	# for i in absent_map
+	#    x = deepcopy(theta_est[i])
+	#    x[x .<=0.05] .= 1e-2
+	#    x./=sum(x)
+	#    theta_est[i] .= deepcopy(x)
+   # end
+
+	#####
 	return theta_est,ϕ1_est, ϕ2_est, ϕ1_truth, ϕ2_truth,theta_truth, inds1, inds2
 end
 
@@ -84,7 +93,8 @@ function do_plots(model,theta_est, ϕ1_est, ϕ2_est, ϕ1_truth, ϕ2_truth, theta
 		@load "h_map" h_map
 		plts = [];
 		for k in 1:size(ϕ1_est[inds1,:],1)
-			p = scatter(theta_truth_1[:,k], theta_est_1[:,k], grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
+			p = scatter(theta_truth_1[:,k], theta_est_1[:,k],markersize = 1,
+           markercolor = :green, grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
 			plts = vcat(plts, p)
 		end
 		if length(inds1) % 2 == 0
@@ -96,7 +106,8 @@ function do_plots(model,theta_est, ϕ1_est, ϕ2_est, ϕ1_truth, ϕ2_truth, theta
 		end
 		plts = [];
 		for k in 1:length(inds1)
-			p = scatter(theta_truth_1[.!(h_map),k], theta_est_1[.!(h_map),k], grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
+			p = scatter(theta_truth_1[.!(h_map),k], theta_est_1[.!(h_map),k],markersize = 1,
+           markercolor = :green, grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
 			plts = vcat(plts, p)
 		end
 		if length(inds1) % 2 == 0
@@ -108,7 +119,8 @@ function do_plots(model,theta_est, ϕ1_est, ϕ2_est, ϕ1_truth, ϕ2_truth, theta
 		end
 		plts = [];
 		for k in 1:length(inds1)
-			p = scatter(theta_truth_1[h_map,k], theta_est_1[h_map,k], grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
+			p = scatter(theta_truth_1[h_map,k], theta_est_1[h_map,k],markersize = 1,
+           markercolor = :green, grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
 			plts = vcat(plts, p)
 		end
 		if length(inds1) % 2 == 0
@@ -123,7 +135,8 @@ function do_plots(model,theta_est, ϕ1_est, ϕ2_est, ϕ1_truth, ϕ2_truth, theta
 
 		plts = [];
 		for k in 1:length(inds2)
-			p = scatter(theta_truth_2[:,k], theta_est_2[:,k], grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
+			p = scatter(theta_truth_2[:,k], theta_est_2[:,k],markersize = 1,
+           markercolor = :green, grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
 			plts = vcat(plts, p)
 		end
 		if length(inds2) % 2 == 0
@@ -135,7 +148,8 @@ function do_plots(model,theta_est, ϕ1_est, ϕ2_est, ϕ1_truth, ϕ2_truth, theta
 		end
 		plts = [];
 		for k in 1:length(inds2)
-			p = scatter(theta_truth_2[.!(h_map),k], theta_est_2[.!(h_map),k], grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
+			p = scatter(theta_truth_2[.!(h_map),k], theta_est_2[.!(h_map),k],markersize = 1,
+           markercolor = :green, grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
 			plts = vcat(plts, p)
 		end
 		if length(inds2) % 2 == 0
@@ -147,7 +161,8 @@ function do_plots(model,theta_est, ϕ1_est, ϕ2_est, ϕ1_truth, ϕ2_truth, theta
 		end
 		plts = [];
 		for k in 1:length(inds2)
-			p = scatter(theta_truth_2[h_map,k], theta_est_2[h_map,k], grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
+			p = scatter(theta_truth_2[h_map,k], theta_est_2[h_map,k],markersize = 1,
+           markercolor = :green, grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
 			plts = vcat(plts, p)
 		end
 		if length(inds2) % 2 == 0
@@ -162,7 +177,8 @@ function do_plots(model,theta_est, ϕ1_est, ϕ2_est, ϕ1_truth, ϕ2_truth, theta
 			present_map = [i for i in collect(1:length(model._corpus1._docs))[.!h_map] if model._corpus2._docs[i]._length != 0]
 			plts = [];
 			for k in 1:length(inds2)
-				p = scatter(theta_truth_2[present_map,k], theta_est_2[present_map,k], grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
+				p = scatter(theta_truth_2[present_map,k], theta_est_2[present_map,k],markersize = 1,
+	           markercolor = :green, grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
 				plts = vcat(plts, p)
 			end
 			if length(inds2) % 2 == 0
@@ -176,7 +192,8 @@ function do_plots(model,theta_est, ϕ1_est, ϕ2_est, ϕ1_truth, ϕ2_truth, theta
 
 			plts = [];
 			for k in 1:length(inds2)
-				p = scatter(theta_truth_2[absent_map,k], theta_est_2[absent_map,k], grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
+				p = scatter(theta_truth_2[absent_map,k], theta_est_2[absent_map,k],markersize = 1,
+	           markercolor = :green, grid=false, aspect_ratio=:equal,legend=false);plot!(x, y, linewidth=3);
 				plts = vcat(plts, p)
 			end
 			if length(inds2) % 2 == 0

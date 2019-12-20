@@ -157,7 +157,13 @@ end
 function simulate_data(N, K1, K2, V1, V2,η1_single_truth, η2_single_truth,wlen1_single, wlen2_single, R,mode,s_)
 	y1 = Int64[]
  	y2 = Int64[]
+	count_tries = 0
  	while true
+		count_tries += 1
+		if count_tries > 2000
+			println("tried a lot, not good params!")
+			return 
+		end
 		α_truth,Α_truth, θ_truth,Θ_truth,
  		ϕ1_truth, ϕ2_truth, η1_truth, η2_truth,V1, V2, corp1, corp2 =
  		Create_Truth(N, K1, K2, V1, V2,η1_single_truth, η2_single_truth, wlen1_single, wlen2_single, R,mode,s_)
